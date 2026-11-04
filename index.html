@@ -261,8 +261,8 @@ function bar(){const b=$("#bar");b.classList.toggle("empty",!ordering||!cart.len
 $("#barbtn").onclick=cartView;
 function cartView(){
  $("#sh").innerHTML=`<button class="x" aria-label="Close" id="cl">×</button><h3>Your order</h3>`+(cart.length?cart.map((l,i)=>`<div class="ln"><div>${l.q}× ${l.n}<small>${[l.vn,...l.ex].filter(Boolean).join(", ")}</small><button data-r="${i}">Remove</button></div><b>${money(l.u*l.q)}</b></div>`).join("")
- +`<div class="ln"><span>Total</span><b>${money(tot())}</b></div><p class="note">Pickup only at Twins Burgers, Palm Beach. Ready in about 15–20 minutes. Pay when you pick up.</p>
- <label for="nm">Name</label><input type="text" id="nm" autocomplete="name" maxlength="60"><label for="ph">Phone</label><input type="tel" id="ph" autocomplete="tel" maxlength="20"><label for="nt">Notes (allergies, no onions…)</label><textarea id="nt" rows="2" maxlength="300"></textarea><p class="err" id="er"></p><button class="go" id="send">Place order · ${money(tot())}</button>`:`<p class="note">Your order is empty. Add something from the menu.</p>`);
+ +`<div class="ln"><span>Total</span><b>${money(tot())}</b></div><p class="note">Pickup only at Twins Burgers, Palm Beach. Ready in about 15–20 minutes. ${payOnline()?"You pay securely with Square on the next step.":"Pay when you pick up."}</p>
+ <label for="nm">Name</label><input type="text" id="nm" autocomplete="name" maxlength="60"><label for="ph">Phone</label><input type="tel" id="ph" autocomplete="tel" maxlength="20"><label for="nt">Notes (allergies, no onions…)</label><textarea id="nt" rows="2" maxlength="300"></textarea><p class="err" id="er"></p><button class="go" id="send">${sendLabel()}</button>`:`<p class="note">Your order is empty. Add something from the menu.</p>`);
  $("#ov").classList.add("on");$("#cl").onclick=close;
  $$("[data-r]").forEach(b=>b.onclick=()=>{cart.splice(+b.dataset.r,1);bar();cart.length?cartView():close()});
  const s=$("#send");if(s)s.onclick=()=>placeOrder(s);}
@@ -280,10 +280,18 @@ async function placeOrder(s){
   const items=cart.map(l=>({id:l.id,qty:l.q,variant:l.vn?o[l.id+"|"+l.vn]:null,extras:l.ex.map(x=>o[l.id+"|"+x]).filter(Boolean)}));
   const {data,error}=await supa.rpc("place_order",{p_name:n,p_phone:p,p_notes:nt,p_items:items});
   if(error)throw error;
-  cart=[];bar();saveLast(data);statusView(data);
- }catch(e){s.disabled=false;s.textContent="Place order · "+money(tot());$("#er").textContent=(e&&e.code==="P0001"&&e.message)?e.message:"We couldn't send your order. Check your connection and try again."}
+  saveLast(data);
+  if(data.status==="pago_pendiente"){s.textContent="Opening secure payment…";await goPay(data.id);return}
+  cart=[];bar();statusView(data);
+ }catch(e){s.disabled=false;s.textContent=sendLabel();$("#er").textContent=(e&&e.code==="P0001"&&e.message)?e.message:"We couldn't send your order. Check your connection and try again."}
 }
-const ST_TXT={pago_pendiente:"Waiting for payment",nuevo:"Order received. The kitchen will confirm it shortly.",prep:"Accepted and on the grill.",listo:"Ready for pickup!",retirado:"Picked up. Enjoy!",cancelado:"This order was cancelled. Please contact us if you have questions."};
+function payOnline(){return!!(STORE&&STORE.pay_online)}
+function sendLabel(){return(payOnline()?"Continue to payment · ":"Place order · ")+money(tot())}
+async function goPay(id){const {data,error}=await supa.functions.invoke("create-checkout",{body:{order_id:id}});
+ if(error||!data||(!data.url&&!data.paid)){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(e){}throw{code:"P0001",message:m||"Online payment is not available right now. Please try again in a moment."}}
+ if(data.paid){statusView({id});return}
+ cart=[];bar();location.href=data.url}
+const ST_TXT={pago_pendiente:"Waiting for payment. If you already paid, this updates in a moment.",nuevo:"Order received. The kitchen will confirm it shortly.",prep:"Accepted and on the grill.",listo:"Ready for pickup!",retirado:"Picked up. Enjoy!",cancelado:"This order was cancelled. Please contact us if you have questions."};
 const hhmm=d=>d.toLocaleTimeString("en-AU",{hour:"numeric",minute:"2-digit",timeZone:"Australia/Brisbane"});
 function saveLast(o){try{localStorage.setItem("tw-last",JSON.stringify({id:o.id,num:o.num,t:Date.now()}))}catch(e){}showMine()}
 function getLast(){try{const v=JSON.parse(localStorage.getItem("tw-last")||"null");if(v&&Date.now()-v.t<8*36e5)return v}catch(e){}return null}
@@ -291,13 +299,16 @@ function clearLast(){try{localStorage.removeItem("tw-last")}catch(e){}showMine()
 function showMine(){const v=getLast(),b=$("#mine");if(!b)return;b.hidden=!v;if(v){b.textContent="Order #"+v.num;b.onclick=()=>statusView(v)}}
 let pollT=null;
 function statusView(o){
- $("#sh").innerHTML=`<button class="x" aria-label="Close" id="cl">×</button><h3>Order #${o.num}</h3><p class="note" id="stx">${ST_TXT.nuevo}</p><p class="note" id="eta"></p><p class="note" style="font-size:15px">Pickup at Twins Burgers, Palm Beach. This page updates on its own, and the order number stays at the top of the page.</p><button class="go" id="okb">Back to the menu</button>`;
- $("#ov").classList.add("on");$("#cl").onclick=close;$("#okb").onclick=close;poll(o.id);
+ $("#sh").innerHTML=`<button class="x" aria-label="Close" id="cl">×</button><h3 id="onum">Order${o.num?" #"+o.num:""}</h3><p class="note" id="stx">${o.num?ST_TXT.nuevo:"Checking your order…"}</p><p class="note" id="eta"></p><button class="go" id="paynow" hidden>Pay now</button><p class="note" style="font-size:15px">Pickup at Twins Burgers, Palm Beach. This page updates on its own, and the order number stays at the top of the page.</p><button class="go" id="okb">Back to the menu</button>`;
+ $("#ov").classList.add("on");$("#cl").onclick=close;$("#okb").onclick=close;
+ $("#paynow").onclick=async()=>{const b=$("#paynow");b.disabled=true;b.textContent="Opening secure payment…";try{await goPay(o.id)}catch(e){b.disabled=false;b.textContent="Pay now";$("#eta").textContent=e.message||"Please try again."}};poll(o.id);
 }
 async function poll(id){
  clearTimeout(pollT);
  try{const {data}=await supa.rpc("order_status",{p_id:id});
-  if(data){const t=$("#stx");if(t)t.textContent=ST_TXT[data.status]||"";
+  if(data){const t=$("#stx");if(t)t.textContent=ST_TXT[data.status]||"";const h=$("#onum");if(h&&data.num)h.textContent="Order #"+data.num;
+   const pb=$("#paynow");if(pb)pb.hidden=data.status!=="pago_pendiente";
+   const v=getLast();if(v&&v.id===id&&!v.num&&data.num){v.num=data.num;try{localStorage.setItem("tw-last",JSON.stringify(v))}catch(e){}showMine()}
    const e=$("#eta");if(e)e.textContent=(data.status==="prep"&&data.eta_min&&data.accepted_at)?"Ready around "+hhmm(new Date(Date.parse(data.accepted_at)+data.eta_min*6e4))+".":"";
    if(data.status==="retirado"||data.status==="cancelado"){clearLast();return}}}catch(e){}
  pollT=setTimeout(()=>poll(id),15000);
@@ -313,6 +324,8 @@ async function refreshStore(){
  try{const {data,error}=await supa.rpc("store_status");if(!error&&data){STORE=data;const ht=hoursText(data.hours||{});const f=$("#hrs");if(f)f.textContent=ht;const c=$("#closed");
   if(data.open){c.hidden=true}else{c.textContent=data.accepting?"Online ordering is closed right now. Pickup hours (Gold Coast time): "+ht+".":"Online ordering is paused for a moment. Please check back soon.";c.hidden=false}}}catch(e){}
 }
+(function(){try{const q=new URLSearchParams(location.search).get("order");if(q&&/^[0-9a-f-]{36}$/.test(q)){const v=getLast();if(!v||v.id!==q){try{localStorage.setItem("tw-last",JSON.stringify({id:q,num:null,t:Date.now()}))}catch(e){}}
+ history.replaceState(null,"",location.pathname);setTimeout(()=>statusView({id:q,num:(getLast()||{}).num}),300)}}catch(e){}})();
 refreshStore();setInterval(()=>{if(!document.hidden)refreshStore()},60000);
 function qr(u){try{const q=qrcode(0,"M");q.addData(u||"https://");q.make();$("#qrbox").innerHTML=q.createSvgTag({cellSize:4,margin:0,scalable:true})}catch(e){$("#qrbox").textContent="QR unavailable"}}
 render();bar();$("#hp").src=IMG.oklahoma;$("#h-o").onclick=()=>setMode(true);

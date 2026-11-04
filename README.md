@@ -17,9 +17,20 @@ Sitio de pedidos para retirar de Twins Burgers (Palm Beach, Gold Coast) y panel 
 - `settings.enforce_hours`: está en `false` mientras se prueba. Al lanzar se activa desde el panel (Local → "Aplicar el horario en el sitio") (lun–mié 15:30–19:00, jue–dom 16:00–20:00, hora de Queensland).
 - La clave del código es la clave pública (publishable) de Supabase. Es segura de publicar porque las reglas RLS limitan lo que se puede hacer con ella.
 
+## Pagos con Square (`supabase/functions`)
+
+| Función | Qué hace |
+| --- | --- |
+| `square-connect` | Crea el link para que el dueño autorice la app (solo administradores). |
+| `square-oauth` | Recibe la autorización, guarda el token del dueño y su local. |
+| `create-checkout` | Crea el link de pago de Square de un pedido, con la comisión del 3% como `app_fee_money`. |
+| `square-webhook` | Recibe el aviso de Square y marca el pedido como pagado. Valida la firma. |
+
+Secretos en Supabase: `SQUARE_ENV` (`sandbox` o `production`), `SQUARE_APP_ID`, `SQUARE_APP_SECRET` y `SQUARE_WEBHOOK_KEY`.
+
 ## Fases
 
 - [x] Fase 2: pedidos reales y panel con login
 - [x] Fase 3: horario, productos agotados y pausa de pedidos desde el panel (pestaña Local)
-- [ ] Fase 4: pago online con Square y comisión del 3%
+- [ ] Fase 4: pago online con Square y comisión del 3% (código listo; falta configurar la app de Square y probar en sandbox)
 - [ ] Fase 5: pruebas y lanzamiento

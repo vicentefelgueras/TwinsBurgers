@@ -166,7 +166,7 @@ input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid 
 .hrs{display:flex;flex-direction:column;gap:8px}.hr{display:grid;grid-template-columns:88px auto minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;font-size:13px}
 .hr input[type=time]{width:100%;min-width:0;padding:8px;border:1px solid var(--line);background:var(--card);border-radius:4px}
 .ck{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink);font-size:13px}
-@media(max-width:480px){.hr{grid-template-columns:1fr auto}}
+@media(max-width:480px){.hr{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.hr .ck{justify-self:end}}
 .sold{border:1px solid var(--line);background:var(--card);padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600}.sold.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .cat{margin:14px 0 2px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:600}
 .etas{display:flex;gap:6px;flex-wrap:wrap;width:100%}.etas button{flex:1;min-width:110px}
@@ -258,6 +258,8 @@ async function boot(){
  supa.auth.onAuthStateChange((ev,s)=>{const had=session?session.user.id:null;session=s;if((s?s.user.id:null)!==had)start()});
  start();
 }
+const SQMSG={ok:"Square quedó conectado.",cancelado:"Se canceló la conexión con Square.",expirado:"El link de Square venció. Genera uno nuevo.",sin_local:"La cuenta Square no tiene un local activo.",error:"No se pudo conectar Square. Intenta de nuevo."};
+let SQRET=null;try{const q=new URLSearchParams(location.search).get("square");if(q){SQRET=q;history.replaceState(null,"",location.pathname)}}catch(e){}
 async function start(){
  if(chan){try{supa.removeChannel(chan)}catch(e){}chan=null}
  real=[];role=null;seen=null;
@@ -270,6 +272,7 @@ async function start(){
  if(role!=="admin"&&tab==="ventas")tab="pedidos";
  await loadLocal();
  await loadAll();
+ if(SQRET&&role==="admin"){tab="local";render();toast(SQMSG[SQRET]||"Listo");SQRET=null}
  chan=supa.channel("orders-live").on("postgres_changes",{event:"*",schema:"public",table:"orders"},p=>{const id=(p.new&&p.new.id)||(p.old&&p.old.id);if(id)refreshOne(id)}).subscribe();
 }
 async function loadAll(){
@@ -294,10 +297,22 @@ document.addEventListener("submit",async e=>{if(e.target.id!=="lf")return;e.prev
 function setDemo(){}
 function rr(){if(tab!=="local")render()}
 const DAYS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-let MENU_ITEMS=[],CFG=null,STORE=null;
+let MENU_ITEMS=[],CFG=null,STORE=null,SQ=null,SQLINK=null;
 async function loadLocal(){
  const [a,b,c]=await Promise.all([supa.from("menu_items").select("id,category,name,sold_out,active,sort").order("sort"),supa.from("settings").select("*").maybeSingle(),supa.rpc("store_status")]);
+ if(role==="admin"){const d=await supa.rpc("square_status");if(!d.error)SQ=d.data}
  if(!a.error)MENU_ITEMS=a.data||[];if(!b.error&&b.data){CFG=b.data;ETA=CFG.default_eta_min||15;PCT=+CFG.commission_pct||3}if(!c.error)STORE=c.data}
+function sqCard(){
+ const c=SQ&&SQ.connected,env=SQ&&SQ.env==="production"?"real":"de prueba (sandbox)";
+ return`<div class="panel"><h3>Pagos con Square</h3>
+  <p class="note">${c?`Conectado a ${esc(SQ.location_name||"la cuenta del dueño")}, en modo ${env}.`:"Todavía no hay una cuenta Square conectada."}</p>
+  ${SQLINK?`<p style="margin:0 0 10px;font-size:13px">Abre este link e inicia sesión con la cuenta Square <b>del dueño</b>. También se lo puedes enviar para que lo autorice él:</p><div class="btns" style="margin-bottom:12px"><a class="big" href="${esc(SQLINK)}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Abrir Square</a><button class="big alt" data-act="sqcopy">Copiar link</button></div>`:""}
+  <div class="btns">
+   <button class="big${c?" alt":""}" data-act="sqconnect">${c?"Volver a conectar Square":"Conectar cuenta Square del dueño"}</button>
+   ${c?`<button class="big${SQ.require_payment?" dng":""}" data-act="sqpay">${SQ.require_payment?"Dejar de cobrar online":"Cobrar online al pedir"}</button>`:""}
+  </div>
+  <p class="note" style="margin:10px 0 0">${SQ&&SQ.require_payment?"Los clientes pagan con Square al hacer el pedido. El pedido aparece en el panel cuando el pago se confirma.":"Ahora los clientes pagan al retirar."}</p>
+ </div>`}
 function storePill(){if(!CFG)return"";if(!CFG.accepting)return`<span class="chip c-late" style="margin:0">Pausado</span>`;if(STORE&&!STORE.open)return`<span class="chip c-prep" style="margin:0">Fuera de horario</span>`;return`<span class="chip c-listo" style="margin:0">Recibiendo pedidos</span>`}
 function local(){
  if(!CFG)return`<p style="color:var(--mut)">Cargando…</p>`;
@@ -312,6 +327,7 @@ function local(){
  <div class="grid2">
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
    <div class="panel"><h3>Pedidos online</h3><p class="note">${state}</p><button class="big${CFG.accepting?" dng":""}" data-act="pause" style="width:100%">${CFG.accepting?"Pausar pedidos online":"Reanudar pedidos online"}</button></div>
+   ${isA?sqCard():""}
    <div class="panel"><h3>Horario de retiro</h3><p class="note">Hora de Gold Coast (Queensland).${CFG.enforce_hours?"":" El sitio todavía no aplica este horario."}</p>${isA?edit:view}</div>
   </div>
   <div class="panel"><h3>Productos agotados</h3><p class="note">Un producto agotado no se puede pedir en el sitio.</p>
@@ -494,6 +510,11 @@ document.addEventListener("click",async e=>{
  if(act==="demo-off"){setDemo(false);return}
  if(act==="pause"&&CFG){a.disabled=true;const {error}=await supa.from("settings").update({accepting:!CFG.accepting}).eq("id",1);if(error)toast("No se pudo cambiar. Intenta de nuevo.");else toast(CFG.accepting?"Pedidos online pausados":"Pedidos online reanudados");await loadLocal();render();return}
  const sdb=t.closest("[data-sold]");if(sdb){const it=MENU_ITEMS.find(x=>x.id===sdb.dataset.sold);if(it){sdb.disabled=true;const {error}=await supa.from("menu_items").update({sold_out:!it.sold_out}).eq("id",it.id);if(error)toast("No se pudo cambiar. Intenta de nuevo.");await loadLocal();render()}return}
+ if(act==="sqconnect"){a.disabled=true;const {data,error}=await supa.functions.invoke("square-connect",{body:{}});a.disabled=false;
+  if(error||!data||!data.url){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(_){}toast(m||"No se pudo crear el link de Square.");return}
+  SQLINK=data.url;render();return}
+ if(act==="sqcopy"&&SQLINK){try{await navigator.clipboard.writeText(SQLINK);toast("Link copiado")}catch(_){toast("Copia el link desde el botón Abrir Square")}return}
+ if(act==="sqpay"&&SQ){a.disabled=true;const {error}=await supa.rpc("set_require_payment",{p_on:!SQ.require_payment});if(error)toast(error.message||"No se pudo cambiar.");else toast(SQ.require_payment?"Ahora se paga al retirar":"Cobro online activado");await loadLocal();render();return}
  if(act==="savehrs"){const H={};for(let d=1;d<=7;d++){if(!$("#h-c"+d).checked)H[String(d)]=[$("#h-o"+d).value,$("#h-x"+d).value]}
   a.disabled=true;const {error}=await supa.rpc("update_store",{p_hours:H,p_enforce:$("#h-enf").checked,p_eta:+$("#h-eta").value});
   if(error){a.disabled=false;$("#h-err").textContent=error.message||"No se pudo guardar.";return}
