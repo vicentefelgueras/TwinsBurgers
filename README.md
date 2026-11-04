@@ -1,15 +1,23 @@
 # Twins Burgers
 
-Sitio de menú y delivery de Twins Burgers (Palm Beach), con panel de pedidos y ventas.
+Sitio de pedidos para retirar de Twins Burgers (Palm Beach, Gold Coast) y panel del local.
 
-- `index.html`: el sitio completo. El botón **Panel**, arriba, abre el gestor de pedidos (Pedidos y Ventas).
+| Archivo | Para quién | Qué hace |
+| --- | --- | --- |
+| `index.html` | Clientes | Menú y pedido para retirar. El pedido se guarda en Supabase y el cliente ve el estado en vivo. |
+| `panel.html` | Dueño y cocina | Pedidos en vivo con aviso de sonido y estados (Aceptar → Listo → Retirado). El dueño también ve Ventas y la comisión. Se entra con correo y contraseña. |
 
-## Estado actual
+## Base de datos (Supabase, proyecto TwinsBurgers)
 
-Versión de demostración: los pedidos hechos en el sitio aparecen en el panel, pero quedan guardados solo en el navegador donde se hicieron. Para que los pedidos de los clientes lleguen al panel del local, falta conectar una base de datos (por ejemplo, Supabase).
+- `place_order`: crea el pedido y calcula los precios en el servidor, con validación de datos, horario y límite de 5 pedidos por teléfono por hora.
+- `order_status`: devuelve el estado de un pedido a quien tiene su id.
+- Tablas: `menu_items`, `menu_options`, `orders`, `order_items`, `staff`, `settings`. Todas con RLS: el público solo lee el menú y crea pedidos.
+- `settings.enforce_hours`: está en `false` mientras se prueba. Al lanzar se pasa a `true` para aplicar el horario (lun–mié 15:30–19:00, jue–dom 16:00–20:00, hora de Queensland).
+- La clave del código es la clave pública (publishable) de Supabase. Es segura de publicar porque las reglas RLS limitan lo que se puede hacer con ella.
 
-## Publicar con GitHub Pages
+## Fases
 
-1. Settings → General → Change visibility → Public.
-2. Settings → Pages → Source: "Deploy from a branch" → rama `main`, carpeta `/ (root)` → Save.
-3. En uno o dos minutos el sitio queda en `https://vicentefelgueras.github.io/TwinsBurgers/`.
+- [x] Fase 2: pedidos reales y panel con login
+- [ ] Fase 3: horario activo, productos agotados y pausa de pedidos desde el panel
+- [ ] Fase 4: pago online con Square y comisión del 3%
+- [ ] Fase 5: pruebas y lanzamiento
