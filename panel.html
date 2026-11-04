@@ -163,6 +163,12 @@ textarea{resize:vertical}
 .lock{max-width:420px;margin:48px auto;color:var(--mut)}
 .lock h1{font-weight:900;font-stretch:75%;text-transform:uppercase;color:var(--ink);margin:0 0 6px}
 input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid var(--line);background:var(--card);border-radius:4px}
+.hrs{display:flex;flex-direction:column;gap:8px}.hr{display:grid;grid-template-columns:88px auto minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;font-size:13px}
+.hr input[type=time]{width:100%;min-width:0;padding:8px;border:1px solid var(--line);background:var(--card);border-radius:4px}
+.ck{display:flex;gap:6px;align-items:center;margin:0;color:var(--ink);font-size:13px}
+@media(max-width:480px){.hr{grid-template-columns:1fr auto}}
+.sold{border:1px solid var(--line);background:var(--card);padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600}.sold.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.cat{margin:14px 0 2px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:600}
 .etas{display:flex;gap:6px;flex-wrap:wrap;width:100%}.etas button{flex:1;min-width:110px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -172,6 +178,7 @@ input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid 
   <nav class="tabs" role="tablist">
     <button role="tab" id="t-ped" aria-selected="true" data-tab="pedidos">Pedidos</button>
     <button role="tab" id="t-ven" aria-selected="false" data-tab="ventas">Ventas</button>
+    <button role="tab" id="t-loc" aria-selected="false" data-tab="local">Local</button>
   </nav>
   <button class="sndbtn" id="snd" aria-pressed="false">Activar sonido</button><button class="new" id="btn-out" hidden>Salir</button>
 </div></header>
@@ -261,7 +268,7 @@ async function start(){
  if(!st){dbState="noaccess";render();return}
  role=st.role;
  if(role!=="admin"&&tab==="ventas")tab="pedidos";
- try{const {data:cfg}=await supa.from("settings").select("default_eta_min,commission_pct").maybeSingle();if(cfg){ETA=cfg.default_eta_min||15;PCT=+cfg.commission_pct||3}}catch(e){}
+ await loadLocal();
  await loadAll();
  chan=supa.channel("orders-live").on("postgres_changes",{event:"*",schema:"public",table:"orders"},p=>{const id=(p.new&&p.new.id)||(p.old&&p.old.id);if(id)refreshOne(id)}).subscribe();
 }
@@ -270,13 +277,13 @@ async function loadAll(){
  const since=new Date(dayStart(Date.now())-60*DAY).toISOString();
  const {data,error}=await supa.from("orders").select("*,order_items(*)").gte("created_at",since).order("created_at",{ascending:false}).limit(1000);
  if(error){dbState="err";render();return}
- real=data.map(mapRow);dbState="ok";checkNew();render();if(openId)drawOrder();
+ real=data.map(mapRow);dbState="ok";checkNew();rr();if(openId)drawOrder();
 }
 async function refreshOne(id){
  const {data}=await supa.from("orders").select("*,order_items(*)").eq("id",id).maybeSingle();
  const i=real.findIndex(o=>o.id===id);
  if(data){const o=mapRow(data);if(i>=0)real[i]=o;else real.unshift(o)}else if(i>=0)real.splice(i,1);
- checkNew();render();if(openId)drawOrder();
+ checkNew();rr();if(openId)drawOrder();
 }
 function checkNew(){const nids=new Set(real.filter(o=>o.status==="nuevo").map(o=>o.id));if(seen){const f=[...nids].filter(i=>!seen.has(i)).length;if(f)alertNew(f)}seen=nids}
 async function logout(){try{await supa.auth.signOut()}catch(e){}session=null;start()}
@@ -285,6 +292,32 @@ document.addEventListener("submit",async e=>{if(e.target.id!=="lf")return;e.prev
  const {error}=await supa.auth.signInWithPassword({email:$("#le").value.trim(),password:$("#lp").value});
  if(error){b.disabled=false;$("#lerr").textContent="Correo o contraseña incorrectos."}});
 function setDemo(){}
+function rr(){if(tab!=="local")render()}
+const DAYS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+let MENU_ITEMS=[],CFG=null,STORE=null;
+async function loadLocal(){
+ const [a,b,c]=await Promise.all([supa.from("menu_items").select("id,category,name,sold_out,active,sort").order("sort"),supa.from("settings").select("*").maybeSingle(),supa.rpc("store_status")]);
+ if(!a.error)MENU_ITEMS=a.data||[];if(!b.error&&b.data){CFG=b.data;ETA=CFG.default_eta_min||15;PCT=+CFG.commission_pct||3}if(!c.error)STORE=c.data}
+function storePill(){if(!CFG)return"";if(!CFG.accepting)return`<span class="chip c-late" style="margin:0">Pausado</span>`;if(STORE&&!STORE.open)return`<span class="chip c-prep" style="margin:0">Fuera de horario</span>`;return`<span class="chip c-listo" style="margin:0">Recibiendo pedidos</span>`}
+function local(){
+ if(!CFG)return`<p style="color:var(--mut)">Cargando…</p>`;
+ const isA=role==="admin",cats=[...new Set(MENU_ITEMS.map(i=>i.category))],hrs=CFG.hours||{};
+ const state=!CFG.accepting?"Pausados: el sitio no acepta pedidos hasta que los reanudes.":STORE&&!STORE.open?"Fuera de horario: el sitio no acepta pedidos en este momento.":"El sitio está aceptando pedidos.";
+ const edit=`<div class="hrs">${DAYS.map((d,i)=>{const w=hrs[String(i+1)];return`<div class="hr"><span>${d}</span><label class="ck"><input type="checkbox" id="h-c${i+1}"${w?"":" checked"}> Cerrado</label><input type="time" id="h-o${i+1}" aria-label="${d}, apertura" value="${w?w[0]:"16:00"}"${w?"":" disabled"}><input type="time" id="h-x${i+1}" aria-label="${d}, cierre" value="${w?w[1]:"20:00"}"${w?"":" disabled"}></div>`}).join("")}</div>
+   <label class="ck" style="margin-top:14px"><input type="checkbox" id="h-enf"${CFG.enforce_hours?" checked":""}> Aplicar el horario en el sitio</label>
+   <label for="h-eta">Tiempo de preparación por defecto</label><select id="h-eta">${[10,15,20,25,30].map(m=>`<option value="${m}"${m===ETA?" selected":""}>${m} min</option>`).join("")}</select>
+   <p class="err" id="h-err"></p><button class="big" data-act="savehrs" style="width:100%">Guardar horario</button>`;
+ const view=`<div class="kv">${DAYS.map((d,i)=>{const w=hrs[String(i+1)];return`<span>${d}</span><div>${w?w[0]+" a "+w[1]:"Cerrado"}</div>`}).join("")}</div>`;
+ return`<div class="sum"><h1>Local</h1>${storePill()}</div>
+ <div class="grid2">
+  <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+   <div class="panel"><h3>Pedidos online</h3><p class="note">${state}</p><button class="big${CFG.accepting?" dng":""}" data-act="pause" style="width:100%">${CFG.accepting?"Pausar pedidos online":"Reanudar pedidos online"}</button></div>
+   <div class="panel"><h3>Horario de retiro</h3><p class="note">Hora de Gold Coast (Queensland).${CFG.enforce_hours?"":" El sitio todavía no aplica este horario."}</p>${isA?edit:view}</div>
+  </div>
+  <div class="panel"><h3>Productos agotados</h3><p class="note">Un producto agotado no se puede pedir en el sitio.</p>
+   ${cats.map(c=>`<h4 class="cat">${esc(c)}</h4>${MENU_ITEMS.filter(i=>i.category===c).map(i=>`<div class="ln"><span class="nm">${esc(i.name)}</span><button class="sold${i.sold_out?" on":""}" data-sold="${esc(i.id)}" aria-pressed="${i.sold_out}">${i.sold_out?"Agotado":"Disponible"}</button></div>`).join("")}`).join("")}
+  </div>
+ </div>`}
 
 async function patch(o,fields){
  if(busy.has(o.id))return;
@@ -313,7 +346,7 @@ function render(){
  if(dbState==="noaccess"){m.innerHTML=`<div class="lock"><h1>Sin acceso</h1><p>La cuenta ${esc(session&&session.user.email||"")} no está autorizada para este panel. Pídele acceso a Rodrigo.</p><button class="big alt" data-act="logout">Salir</button></div>`;return}
  if(dbState==="err")h+=`<div class="warn">No se pudo conectar con la base de datos. Revisa la conexión; el panel vuelve a intentarlo solo.</div>`;
  if(dbState==="loading"&&!demo){m.innerHTML=h+`<p style="color:var(--mut)">Cargando pedidos…</p>`;return}
- h+=tab==="pedidos"?board():sales();
+ h+=tab==="pedidos"?board():tab==="ventas"?sales():local();
  m.innerHTML=h;
 }
 
@@ -335,7 +368,7 @@ function board(){
  const active=by.nuevo.length+by.prep.length+by.listo.length;
  const todaySales=all.filter(o=>o.createdAt>=today&&o.status!=="cancelado").reduce((a,o)=>a+(+o.total||0),0);
  const emp={nuevo:"Sin pedidos nuevos. Cuando un cliente pida en el sitio, aparece aquí y suena el aviso.",prep:"Nada en la plancha.",listo:"Nada esperando retiro.",entregado:"Todavía no hay retiros hoy."};
- return`<div class="sum"><h1>Pedidos de hoy</h1><p>${active} en curso · ${by.entregado.length} retirados · ${money(todaySales)} vendidos</p></div>
+ return`${CFG&&!CFG.accepting?`<div class="warn" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>Pedidos online pausados.</b> El sitio no acepta pedidos.</span><button class="ghost" data-act="pause">Reanudar</button></div>`:STORE&&!STORE.open?`<div class="warn"><b>Fuera de horario.</b> El sitio no acepta pedidos en este momento.</div>`:""}<div class="sum"><h1>Pedidos de hoy</h1><p>${active} en curso · ${by.entregado.length} retirados · ${money(todaySales)} vendidos</p></div>
  <div class="coltabs" role="tablist">${FLOW.map(k=>`<button role="tab" data-col="${k}" aria-selected="${col===k}">${ST[k].t.split(" /")[0]} · ${by[k].length}</button>`).join("")}</div>
  <div class="board">${FLOW.map(k=>`<section class="col${col===k?" on":""}"><header><span class="dot" style="background:${ST[k].c}"></span><h2>${ST[k].t}</h2><span class="n">${by[k].length}</span></header>
   <div class="stack">${by[k].length?by[k].map(card).join(""):`<div class="empty">${emp[k]}</div>`}</div></section>`).join("")}</div>`;
@@ -452,13 +485,19 @@ async function saveOrder(){
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
  const t=e.target;
- const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin")tab="pedidos";try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
+ const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin"&&tab==="ventas")tab="pedidos";try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
  if(t.closest("#btn-out")||(t.closest("[data-act]")&&t.closest("[data-act]").dataset.act==="logout")){logout();return}
  const et=t.closest("[data-eta]");if(et&&openId){const o=orders().find(x=>x.id===openId);if(o){await patch(o,{status:"prep",eta:+et.dataset.eta});drawOrder()}return}
  const sb=t.closest("#snd");if(sb){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(_){}soundOn=!soundOn&&!!actx;sb.setAttribute("aria-pressed",soundOn);sb.textContent=soundOn?"Sonido activado":"Activar sonido";if(soundOn)beep();return}
  const a=t.closest("[data-act]"),act=a?.dataset.act;
  if(act==="close"&&(a===t||a.classList.contains("x"))){closeSheet();return}
  if(act==="demo-off"){setDemo(false);return}
+ if(act==="pause"&&CFG){a.disabled=true;const {error}=await supa.from("settings").update({accepting:!CFG.accepting}).eq("id",1);if(error)toast("No se pudo cambiar. Intenta de nuevo.");else toast(CFG.accepting?"Pedidos online pausados":"Pedidos online reanudados");await loadLocal();render();return}
+ const sdb=t.closest("[data-sold]");if(sdb){const it=MENU_ITEMS.find(x=>x.id===sdb.dataset.sold);if(it){sdb.disabled=true;const {error}=await supa.from("menu_items").update({sold_out:!it.sold_out}).eq("id",it.id);if(error)toast("No se pudo cambiar. Intenta de nuevo.");await loadLocal();render()}return}
+ if(act==="savehrs"){const H={};for(let d=1;d<=7;d++){if(!$("#h-c"+d).checked)H[String(d)]=[$("#h-o"+d).value,$("#h-x"+d).value]}
+  a.disabled=true;const {error}=await supa.rpc("update_store",{p_hours:H,p_enforce:$("#h-enf").checked,p_eta:+$("#h-eta").value});
+  if(error){a.disabled=false;$("#h-err").textContent=error.message||"No se pudo guardar.";return}
+  await loadLocal();render();toast("Horario guardado");return}
  const adv=t.closest("[data-adv]");if(adv){const o=orders().find(x=>x.id===adv.dataset.adv);if(o)advance(o);return}
  const cl=t.closest("[data-col]");if(cl){col=cl.dataset.col;render();return}
  const pe=t.closest("[data-per]");if(pe){period=pe.dataset.per;render();return}
@@ -478,9 +517,10 @@ document.addEventListener("click",async e=>{
  }
  const op=t.closest("[data-open]");if(op&&!form){openOrder(op.dataset.open)}
 });
+document.addEventListener("change",e=>{const m=/^h-c(\d)$/.exec(e.target.id||"");if(m){$("#h-o"+m[1]).disabled=e.target.checked;$("#h-x"+m[1]).disabled=e.target.checked}});
 document.addEventListener("input",e=>{if(form&&e.target.id==="f-fee"){syncForm();const s=form.lines.reduce((a,l)=>a+l.u*l.q,0);const el=$("#f-tot");if(el)el.textContent=money(s+(+form.fee||0))}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&(openId||form))closeSheet()});
-setInterval(()=>{if(role&&Date.now()-lastLoad>60000)loadAll();if(tab==="pedidos"&&!document.hidden)render();if(openId)drawOrder()},30000);
+setInterval(()=>{if(role&&Date.now()-lastLoad>60000){loadAll();loadLocal().then(()=>{if(tab!=="local")render()})}if(tab==="pedidos"&&!document.hidden)render();if(openId)drawOrder()},30000);
 boot();
 </script>
 </body></html>

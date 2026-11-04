@@ -11,13 +11,15 @@ Sitio de pedidos para retirar de Twins Burgers (Palm Beach, Gold Coast) y panel 
 
 - `place_order`: crea el pedido y calcula los precios en el servidor, con validación de datos, horario y límite de 5 pedidos por teléfono por hora.
 - `order_status`: devuelve el estado de un pedido a quien tiene su id.
+- `store_status`: dice si el local está abierto, pausado o fuera de horario.
+- `update_store`: cambia el horario y el tiempo de preparación. Solo lo pueden usar administradores.
 - Tablas: `menu_items`, `menu_options`, `orders`, `order_items`, `staff`, `settings`. Todas con RLS: el público solo lee el menú y crea pedidos.
-- `settings.enforce_hours`: está en `false` mientras se prueba. Al lanzar se pasa a `true` para aplicar el horario (lun–mié 15:30–19:00, jue–dom 16:00–20:00, hora de Queensland).
+- `settings.enforce_hours`: está en `false` mientras se prueba. Al lanzar se activa desde el panel (Local → "Aplicar el horario en el sitio") (lun–mié 15:30–19:00, jue–dom 16:00–20:00, hora de Queensland).
 - La clave del código es la clave pública (publishable) de Supabase. Es segura de publicar porque las reglas RLS limitan lo que se puede hacer con ella.
 
 ## Fases
 
 - [x] Fase 2: pedidos reales y panel con login
-- [ ] Fase 3: horario activo, productos agotados y pausa de pedidos desde el panel
+- [x] Fase 3: horario, productos agotados y pausa de pedidos desde el panel (pestaña Local)
 - [ ] Fase 4: pago online con Square y comisión del 3%
 - [ ] Fase 5: pruebas y lanzamiento
