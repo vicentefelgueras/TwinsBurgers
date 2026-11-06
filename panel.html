@@ -297,18 +297,17 @@ document.addEventListener("submit",async e=>{if(e.target.id!=="lf")return;e.prev
 function setDemo(){}
 function rr(){if(tab!=="local")render()}
 const DAYS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-let MENU_ITEMS=[],CFG=null,STORE=null,SQ=null,SQLINK=null;
+let MENU_ITEMS=[],CFG=null,STORE=null,SQ=null,PAIDW={};
 async function loadLocal(){
  const [a,b,c]=await Promise.all([supa.from("menu_items").select("id,category,name,sold_out,active,sort").order("sort"),supa.from("settings").select("*").maybeSingle(),supa.rpc("store_status")]);
- if(role==="admin"){const d=await supa.rpc("square_status");if(!d.error)SQ=d.data}
+ if(role==="admin"){const d=await supa.rpc("square_status");if(!d.error)SQ=d.data;const w=await supa.from("commission_payments").select("week_start,amount_cents,paid_at");if(!w.error){PAIDW={};(w.data||[]).forEach(x=>PAIDW[x.week_start]=x)}}
  if(!a.error)MENU_ITEMS=a.data||[];if(!b.error&&b.data){CFG=b.data;ETA=CFG.default_eta_min||15;PCT=+CFG.commission_pct||3}if(!c.error)STORE=c.data}
 function sqCard(){
  const c=SQ&&SQ.connected,env=SQ&&SQ.env==="production"?"real":"de prueba (sandbox)";
  return`<div class="panel"><h3>Pagos con Square</h3>
-  <p class="note">${c?`Conectado a ${esc(SQ.location_name||"la cuenta del dueño")}, en modo ${env}.`:"Todavía no hay una cuenta Square conectada."}</p>
-  ${SQLINK?`<p style="margin:0 0 10px;font-size:13px">Abre este link e inicia sesión con la cuenta Square <b>del dueño</b>. También se lo puedes enviar para que lo autorice él:</p><div class="btns" style="margin-bottom:12px"><a class="big" href="${esc(SQLINK)}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">Abrir Square</a><button class="big alt" data-act="sqcopy">Copiar link</button></div>`:""}
+  <p class="note">${c?`Conectado a ${esc(SQ.location_name||"la cuenta del dueño")}, en modo ${env}. El dinero va completo a la cuenta Square del dueño.`:"Falta cargar en Supabase el token de Square del dueño y la clave del webhook. Después toca Verificar."}</p>
   <div class="btns">
-   <button class="big${c?" alt":""}" data-act="sqconnect">${c?"Volver a conectar Square":"Conectar cuenta Square del dueño"}</button>
+   <button class="big${c?" alt":""}" data-act="sqcheck">${c?"Verificar de nuevo":"Verificar conexión con Square"}</button>
    ${c?`<button class="big${SQ.require_payment?" dng":""}" data-act="sqpay">${SQ.require_payment?"Dejar de cobrar online":"Cobrar online al pedir"}</button>`:""}
   </div>
   <p class="note" style="margin:10px 0 0">${SQ&&SQ.require_payment?"Los clientes pagan con Square al hacer el pedido. El pedido aparece en el panel cuando el pago se confirma.":"Ahora los clientes pagan al retirar."}</p>
@@ -394,7 +393,7 @@ function board(){
 function range(p){const now=Date.now(),t0=dayStart(now);
  if(p==="hoy")return{a:t0,b:t0+DAY,pa:t0-DAY,pb:t0,vs:"vs ayer"};
  const n=p==="7"?7:30;return{a:t0-(n-1)*DAY,b:t0+DAY,pa:t0-(2*n-1)*DAY,pb:t0-(n-1)*DAY,vs:`vs ${n} días anteriores`}}
-function stats(list){const ok=list.filter(o=>o.status!=="cancelado"&&o.status!=="pago_pendiente"),tot=ok.reduce((a,o)=>a+(+o.total||0),0);return{ok,tot,n:ok.length,avg:ok.length?tot/ok.length:0,canc:list.filter(o=>o.status==="cancelado").length,comm:ok.reduce((a,o)=>a+(+o.commission||0),0)}}
+function stats(list){const ok=list.filter(o=>o.status!=="cancelado"&&o.status!=="pago_pendiente"),tot=ok.reduce((a,o)=>a+(+o.total||0),0);return{ok,tot,n:ok.length,avg:ok.length?tot/ok.length:0,canc:list.filter(o=>o.status==="cancelado").length,comm:ok.filter(o=>o.status==="entregado").reduce((a,o)=>a+(+o.commission||0),0)}}
 function delta(c,p,vs){if(!p)return`<span>${vs}: sin datos</span>`;const d=(c-p)/p*100;return`<span class="${d>=0?"up":"down"}">${d>=0?"▲":"▼"} ${Math.abs(d).toFixed(0)}%</span> ${vs}`}
 function niceMax(v){if(v<=0)return 10;const e=Math.pow(10,Math.floor(Math.log10(v))),f=v/e;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*e}
 function barChart(vals,labels,every){
@@ -403,6 +402,21 @@ function barChart(vals,labels,every){
  vals.forEach((v,i)=>{const h=(H-T-B)*v/max,x=L+i*bw+bw*.15;g+=`<rect class="bar${v===top&&v>0?" max":""}" x="${x.toFixed(1)}" y="${(H-B-h).toFixed(1)}" width="${(bw*.7).toFixed(1)}" height="${h.toFixed(1)}" rx="2"><title>${labels[i]}: ${money(v)}</title></rect>`;
   if(i%every===0)g+=`<text class="ax" x="${(L+i*bw+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${labels[i]}</text>`});
  return`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ventas por período">${g}</svg>`}
+const TZ=10*36e5;
+const wkStart=t=>{const d=new Date(t+TZ),dow=(d.getUTCDay()+6)%7;return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-dow*DAY-TZ};
+const lday=t=>{const d=new Date(t+TZ);return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)};
+const liso=t=>new Date(t+TZ).toISOString().slice(0,10);
+function weeks(){const cur=wkStart(Date.now()),out=[];for(let k=0;k<8;k++){const a=cur-k*7*DAY,b=a+7*DAY;
+ const os=orders().filter(o=>o.status==="entregado"&&o.createdAt>=a&&o.createdAt<b);
+ out.push({a,b,key:liso(a),n:os.length,sales:os.reduce((s,o)=>s+(+o.total||0),0),comm:os.reduce((s,o)=>s+(+o.commission||0),0),cur:k===0,payDay:a+8*DAY})}return out}
+function weekText(w){return`Twins Burgers · Comisión semana ${lday(w.a)} al ${lday(w.b-DAY)}: ${w.n} pedido${w.n===1?"":"s"} retirado${w.n===1?"":"s"}, ventas ${money(w.sales)}, comisión ${PCT}% = ${money(w.comm)}. Pago el martes ${lday(w.payDay)}.`}
+function commSection(){const ws=weeks().filter(w=>w.cur||w.n>0);
+ return`<div class="panel mt"><h3>Tu comisión semanal</h3><p class="note">Semanas de lunes a domingo (hora de Gold Coast), ${PCT}% de los pedidos retirados. El dueño transfiere el martes siguiente.</p>
+ <div class="tw"><table><thead><tr><th>Semana</th><th class="r">Retirados</th><th class="r">Ventas</th><th class="r">Comisión</th><th>Pago</th><th></th></tr></thead><tbody>
+ ${ws.map(w=>{const p=PAIDW[w.key];return`<tr><td>${lday(w.a)} – ${lday(w.b-DAY)}</td><td class="r">${w.n}</td><td class="r">${money(w.sales)}</td><td class="r"><b>${money(w.comm)}</b></td>
+  <td>${w.cur?`<span class="chip c-prep" style="margin:0">En curso</span>`:p?`<span class="chip c-listo" style="margin:0">Pagada</span>`:`<span class="chip c-nuevo" style="margin:0">Martes ${lday(w.payDay)}</span>`}</td>
+  <td style="white-space:nowrap">${w.cur?"":`<button class="ghost" data-wcopy="${w.key}">Copiar</button> ${p?`<button class="ghost" data-wunpay="${w.key}">Deshacer</button>`:`<button class="ghost" data-wpay="${w.key}">Marcar pagada</button>`}`}</td></tr>`}).join("")}
+ </tbody></table></div></div>`}
 function sales(){
  const R=range(period),all=orders(),cur=all.filter(o=>o.createdAt>=R.a&&o.createdAt<R.b),prev=all.filter(o=>o.createdAt>=R.pa&&o.createdAt<R.pb);
  const S=stats(cur),P=stats(prev);
@@ -422,7 +436,7 @@ function sales(){
   <div class="kpi hero"><div class="l">Vendido</div><div class="v">${money(S.tot)}</div><div class="d">${delta(S.tot,P.tot,R.vs)}</div></div>
   <div class="kpi"><div class="l">Pedidos</div><div class="v">${S.n}</div><div class="d">${delta(S.n,P.n,R.vs)}</div></div>
   <div class="kpi"><div class="l">Ticket promedio</div><div class="v">${money(S.avg)}</div><div class="d">${delta(S.avg,P.avg,R.vs)}</div></div>
-  <div class="kpi"><div class="l">Comisión ${PCT}%</div><div class="v">${money(S.comm)}</div><div class="d">${S.canc} cancelado${S.canc===1?"":"s"} en el período</div></div>
+  <div class="kpi"><div class="l">Comisión ${PCT}%</div><div class="v">${money(S.comm)}</div><div class="d">De pedidos retirados · ${S.canc} cancelado${S.canc===1?"":"s"}</div></div>
  </div>
  <div class="grid2">
   <div class="panel chart"><h3>${title}</h3><p class="note">Total de los pedidos, sin cancelados. AUD.</p>${S.n?barChart(vals,labels,every):`<div class="empty">Aún no hay ventas en este período.</div>`}</div>
@@ -434,7 +448,7 @@ function sales(){
    <div class="panel"><h3>Medios de pago</h3>${brk("pay",PAYS,cols)}</div>
    <div class="panel"><h3>Canal</h3>${brk("channel",CHANS,cols)}</div>
   </div>
- </div>`;
+ </div>${role==="admin"?commSection():""}`;
 }
 
 /* ---------- order detail ---------- */
@@ -510,10 +524,12 @@ document.addEventListener("click",async e=>{
  if(act==="demo-off"){setDemo(false);return}
  if(act==="pause"&&CFG){a.disabled=true;const {error}=await supa.from("settings").update({accepting:!CFG.accepting}).eq("id",1);if(error)toast("No se pudo cambiar. Intenta de nuevo.");else toast(CFG.accepting?"Pedidos online pausados":"Pedidos online reanudados");await loadLocal();render();return}
  const sdb=t.closest("[data-sold]");if(sdb){const it=MENU_ITEMS.find(x=>x.id===sdb.dataset.sold);if(it){sdb.disabled=true;const {error}=await supa.from("menu_items").update({sold_out:!it.sold_out}).eq("id",it.id);if(error)toast("No se pudo cambiar. Intenta de nuevo.");await loadLocal();render()}return}
- if(act==="sqconnect"){a.disabled=true;const {data,error}=await supa.functions.invoke("square-connect",{body:{}});a.disabled=false;
-  if(error||!data||!data.url){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(_){}toast(m||"No se pudo crear el link de Square.");return}
-  SQLINK=data.url;render();return}
- if(act==="sqcopy"&&SQLINK){try{await navigator.clipboard.writeText(SQLINK);toast("Link copiado")}catch(_){toast("Copia el link desde el botón Abrir Square")}return}
+ const wc=t.closest("[data-wcopy]");if(wc){const w=weeks().find(x=>x.key===wc.dataset.wcopy);if(w){try{await navigator.clipboard.writeText(weekText(w));toast("Resumen copiado")}catch(_){toast(weekText(w))}}return}
+ const wp=t.closest("[data-wpay]");if(wp){const w=weeks().find(x=>x.key===wp.dataset.wpay);if(w){wp.disabled=true;const {error}=await supa.from("commission_payments").insert({week_start:w.key,amount_cents:Math.round(w.comm*100)});if(error)toast("No se pudo guardar.");else toast("Semana marcada como pagada");await loadLocal();render()}return}
+ const wu=t.closest("[data-wunpay]");if(wu){wu.disabled=true;const {error}=await supa.from("commission_payments").delete().eq("week_start",wu.dataset.wunpay);if(error)toast("No se pudo cambiar.");await loadLocal();render();return}
+ if(act==="sqcheck"){a.disabled=true;const {data,error}=await supa.functions.invoke("square-check",{body:{}});a.disabled=false;
+  if(error||!data||!data.ok){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(_){}toast(m||"No se pudo verificar Square.");return}
+  toast("Square verificado: "+(data.location_name||"OK"));await loadLocal();render();return}
  if(act==="sqpay"&&SQ){a.disabled=true;const {error}=await supa.rpc("set_require_payment",{p_on:!SQ.require_payment});if(error)toast(error.message||"No se pudo cambiar.");else toast(SQ.require_payment?"Ahora se paga al retirar":"Cobro online activado");await loadLocal();render();return}
  if(act==="savehrs"){const H={};for(let d=1;d<=7;d++){if(!$("#h-c"+d).checked)H[String(d)]=[$("#h-o"+d).value,$("#h-x"+d).value]}
   a.disabled=true;const {error}=await supa.rpc("update_store",{p_hours:H,p_enforce:$("#h-enf").checked,p_eta:+$("#h-eta").value});

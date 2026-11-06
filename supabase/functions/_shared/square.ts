@@ -43,10 +43,17 @@ export async function obtainToken(body: Record<string, unknown>) {
   return j;
 }
 
-// Token del dueño, renovado si vence en menos de 7 días.
+// Token del dueño cargado como secreto en Supabase (SQUARE_ACCESS_TOKEN). Si no existe, se usa el de OAuth.
+export const ENV_TOKEN = (Deno.env.get("SQUARE_ACCESS_TOKEN") ?? "").trim();
+
+// El de OAuth (si se usara) se renueva cuando vence en menos de 7 días.
 export async function sellerAuth(db: SupabaseClient) {
   const { data: a, error } = await db.from("square_auth").select("*").eq("id", 1).maybeSingle();
   if (error || !a) throw new Error("Square no está conectado");
+  if (ENV_TOKEN) {
+    if (a.env !== ENV) throw new Error("Square se verificó en otro modo (" + a.env + "); verifícalo de nuevo");
+    return { ...a, access_token: ENV_TOKEN };
+  }
   if (a.env !== ENV) throw new Error("Square está conectado en otro modo (" + a.env + "); vuelve a conectarlo");
   if (a.refresh_token && a.expires_at && Date.parse(a.expires_at) - Date.now() < 7 * 864e5) {
     const t = await obtainToken({ grant_type: "refresh_token", refresh_token: a.refresh_token });

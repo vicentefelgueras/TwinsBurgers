@@ -19,18 +19,20 @@ Sitio de pedidos para retirar de Twins Burgers (Palm Beach, Gold Coast) y panel 
 
 ## Pagos con Square (`supabase/functions`)
 
+El cliente paga online con Square y el dinero va completo a la cuenta Square del dueño. La comisión de Rodrigo (3% de los pedidos retirados) se calcula en el panel (Ventas → Tu comisión semanal), y el dueño la transfiere cada martes por la semana de lunes a domingo anterior.
+
 | Función | Qué hace |
 | --- | --- |
-| `square-connect` | Crea el link para que el dueño autorice la app (solo administradores). |
-| `square-oauth` | Recibe la autorización, guarda el token del dueño y su local. |
-| `create-checkout` | Crea el link de pago de Square de un pedido, con la comisión del 3% como `app_fee_money`. |
+| `square-check` | Verifica el token del dueño y guarda su local (solo administradores). |
+| `create-checkout` | Crea el link de pago de Square de un pedido. |
 | `square-webhook` | Recibe el aviso de Square y marca el pedido como pagado. Valida la firma. |
+| `square-connect`, `square-oauth` | Conexión por OAuth, no se usa por ahora. |
 
-Secretos en Supabase: `SQUARE_ENV` (`sandbox` o `production`), `SQUARE_APP_ID`, `SQUARE_APP_SECRET` y `SQUARE_WEBHOOK_KEY`.
+Secretos en Supabase: `SQUARE_ENV` (`sandbox` o `production`), `SQUARE_ACCESS_TOKEN` (token del dueño) y `SQUARE_WEBHOOK_KEY`.
 
 ## Fases
 
 - [x] Fase 2: pedidos reales y panel con login
 - [x] Fase 3: horario, productos agotados y pausa de pedidos desde el panel (pestaña Local)
-- [ ] Fase 4: pago online con Square y comisión del 3% (código listo; falta configurar la app de Square y probar en sandbox)
+- [ ] Fase 4: pago online con Square (código listo; falta cargar el token del dueño y probar en sandbox) y resumen semanal de la comisión
 - [ ] Fase 5: pruebas y lanzamiento

@@ -1,4 +1,4 @@
-// Crea el link de pago de Square para un pedido pendiente, con la comisión de la app.
+// Crea el link de pago de Square para un pedido pendiente. El dinero va completo a la cuenta del dueño.
 import { adminClient, auPhone, cors, json, sellerAuth, SITE_URL, sq } from "../_shared/square.ts";
 
 Deno.serve(async (req) => {
@@ -32,7 +32,6 @@ Deno.serve(async (req) => {
         redirect_url: SITE_URL + "?order=" + o.id,
         ask_for_shipping_address: false,
         allow_tipping: false,
-        ...(o.commission_cents > 0 ? { app_fee_money: { amount: o.commission_cents, currency: "AUD" } } : {}),
       },
       payment_note: "Twins Burgers pedido #" + o.num,
     };
