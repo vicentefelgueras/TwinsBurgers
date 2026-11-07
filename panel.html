@@ -170,6 +170,26 @@ input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid 
 .sold{border:1px solid var(--line);background:var(--card);padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600}.sold.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .cat{margin:14px 0 2px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:600}
 .etas{display:flex;gap:6px;flex-wrap:wrap;width:100%}.etas button{flex:1;min-width:110px}
+#printarea{display:none}
+@media print{
+ @page{size:80mm auto;margin:0}
+ html,body{background:#fff!important;padding:0!important;margin:0!important}
+ body>*:not(#printarea){display:none!important}
+ #printarea{display:block}
+ .tk{width:72mm;margin:0 auto;padding:3mm 2mm 6mm;font:13px/1.35 Arial,Helvetica,sans-serif;color:#000;break-after:page;page-break-after:always}
+ .tk:last-child{break-after:auto;page-break-after:auto}
+ .tk .hd{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;letter-spacing:.08em;font-size:12px}
+ .tk .num{font-size:34px;font-weight:900;line-height:1.05;margin:2px 0}
+ .tk .who{font-size:15px;font-weight:700}
+ .tk hr{border:0;border-top:1px dashed #000;margin:7px 0}
+ .tk .it{font-size:17px;font-weight:700;margin:3px 0}
+ .tk .op{font-size:14px;margin:0 0 4px 16px}
+ .tk .nt{border:2px solid #000;padding:5px;font-size:15px;font-weight:700;margin-top:6px}
+ .tk .row{display:flex;justify-content:space-between;gap:8px;font-size:13px;margin:2px 0}
+ .tk .tot{font-size:17px;font-weight:900}
+ .tk .c{text-align:center}
+ .tk .brand{font-size:20px;font-weight:900;letter-spacing:.06em;text-align:center}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 </head><body>
@@ -184,6 +204,7 @@ input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid 
 </div></header>
 <main class="main gut" id="main"><p style="color:var(--mut)">Cargando pedidos…</p></main>
 <div id="sheet"></div>
+<div id="printarea" aria-hidden="true"></div>
 <div id="toast"></div>
 
 <script>
@@ -288,13 +309,35 @@ async function refreshOne(id){
  if(data){const o=mapRow(data);if(i>=0)real[i]=o;else real.unshift(o)}else if(i>=0)real.splice(i,1);
  checkNew();rr();if(openId)drawOrder();
 }
-function checkNew(){const nids=new Set(real.filter(o=>o.status==="nuevo").map(o=>o.id));if(seen){const f=[...nids].filter(i=>!seen.has(i)).length;if(f)alertNew(f)}seen=nids}
+function checkNew(){const nids=new Set(real.filter(o=>o.status==="nuevo").map(o=>o.id));if(seen){const fresh=[...nids].filter(i=>!seen.has(i));if(fresh.length){alertNew(fresh.length);if(autoPrintOn()){const done=printedSet();fresh.forEach(id=>{const o=real.find(x=>x.id===id);if(o&&!done.has(id))printOrder(o)})}}}seen=nids}
 async function logout(){try{await supa.auth.signOut()}catch(e){}session=null;start()}
 function loginHTML(){return`<div class="lock"><h1>Panel Twins Burgers</h1><p>Entra con tu correo y contraseña.</p><form id="lf"><label for="le">Correo</label><input type="email" id="le" autocomplete="username" required><label for="lp">Contraseña</label><input type="password" id="lp" autocomplete="current-password" required><p class="err" id="lerr"></p><button class="big" type="submit" style="width:100%">Entrar</button></form></div>`}
 document.addEventListener("submit",async e=>{if(e.target.id!=="lf")return;e.preventDefault();const b=e.target.querySelector("button");b.disabled=true;
  const {error}=await supa.auth.signInWithPassword({email:$("#le").value.trim(),password:$("#lp").value});
  if(error){b.disabled=false;$("#lerr").textContent="Correo o contraseña incorrectos."}});
 function setDemo(){}
+const splitOpt=n=>{const m=/^(.*?)\s\((.*)\)$/.exec(n);return m?[m[1],m[2]]:[n,""]};
+function ticketsHTML(o){
+ const when=new Date(o.createdAt),d=pad(when.getDate())+"/"+pad(when.getMonth()+1)+" "+hm(o.createdAt);
+ const kit=`<div class="tk"><div class="hd"><span>COCINA</span><span>${hm(o.createdAt)}</span></div><div class="num">#${o.num}</div><div class="who">${esc(o.customer||"Cliente")} · RETIRO</div>${o.etaAt?`<div>Listo a las ${hm(o.etaAt)}</div>`:""}<hr>
+  ${(o.items||[]).map(l=>{const [n,op]=splitOpt(l.n);return`<div class="it">${l.q} × ${esc(n)}</div>${op?`<div class="op">${esc(op)}</div>`:""}`}).join("")}
+  ${o.notes?`<div class="nt">NOTAS: ${esc(o.notes)}</div>`:""}</div>`;
+ const cli=`<div class="tk"><div class="brand">TWINS BURGERS</div><div class="c">Palm Beach · Pedido para retirar</div><hr>
+  <div class="num c">#${o.num}</div><div class="c who">${esc(o.customer||"Cliente")}</div><div class="c">${esc(o.phone||"")} · ${d}</div><hr>
+  ${(o.items||[]).map(l=>`<div class="row"><span>${l.q} × ${esc(l.n)}</span><span>${money(l.u*l.q)}</span></div>`).join("")}<hr>
+  <div class="row tot"><span>TOTAL</span><span>${money(o.total)}</span></div><div class="row"><span>${esc(o.pay||"")}</span><span>AUD</span></div>
+  ${o.notes?`<div class="row"><span>Notas: ${esc(o.notes)}</span></div>`:""}<hr><div class="c">¡Gracias! / Thank you!</div></div>`;
+ return kit+cli}
+let printQ=[],printing=false;
+function printOrder(o){printQ.push(o);if(!printing)runPrint()}
+function runPrint(){const o=printQ.shift();if(!o){printing=false;return}printing=true;
+ document.getElementById("printarea").innerHTML=ticketsHTML(o);
+ setTimeout(()=>{try{window.print()}catch(e){}markPrinted(o.id);setTimeout(runPrint,800)},150)}
+const PKEY="tw-printed",AKEY="tw-autoprint";
+function printedSet(){try{return new Set(JSON.parse(localStorage.getItem(PKEY)||"[]"))}catch(e){return new Set()}}
+function markPrinted(id){try{const s=[...printedSet(),id].slice(-300);localStorage.setItem(PKEY,JSON.stringify(s))}catch(e){}}
+function autoPrintOn(){try{return localStorage.getItem(AKEY)==="1"}catch(e){return false}}
+function setAutoPrint(v){try{localStorage.setItem(AKEY,v?"1":"0")}catch(e){}}
 function rr(){if(tab!=="local")render()}
 const DAYS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 let MENU_ITEMS=[],CFG=null,STORE=null,SQ=null,PAIDW={};
@@ -326,6 +369,8 @@ function local(){
  <div class="grid2">
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
    <div class="panel"><h3>Pedidos online</h3><p class="note">${state}</p><button class="big${CFG.accepting?" dng":""}" data-act="pause" style="width:100%">${CFG.accepting?"Pausar pedidos online":"Reanudar pedidos online"}</button></div>
+   <div class="panel"><h3>Impresora de boletas</h3><p class="note">Cada pedido imprime 2 boletas de 80 mm: una para la cocina y otra para el retiro. Este ajuste vale solo para este aparato.</p>
+    <div class="btns"><button class="big${autoPrintOn()?"":" alt"}" data-act="autoprint">${autoPrintOn()?"Impresión automática: activada":"Activar impresión automática"}</button><button class="big alt" data-act="testprint">Imprimir prueba</button></div></div>
    ${isA?sqCard():""}
    <div class="panel"><h3>Horario de retiro</h3><p class="note">Hora de Gold Coast (Queensland).${CFG.enforce_hours?"":" El sitio todavía no aplica este horario."}</p>${isA?edit:view}</div>
   </div>
@@ -464,6 +509,7 @@ function drawOrder(){
   <div class="ln"><span class="nm"><b>Total</b></span><b>${money(o.total)}</b></div></div>
  <div class="sec"><h4>Cliente</h4><div class="kv"><span>Nombre</span><div>${esc(o.customer||"—")}</div><span>Teléfono</span><div>${o.phone?`${esc(o.phone)} <button class="ghost" data-act="copy" style="padding:3px 8px;margin-left:6px">Copiar</button>`:"—"}</div><span>Entrega</span><div>Retira en el local${o.etaAt?" · listo a las "+hm(o.etaAt):""}</div>${o.notes?`<span>Notas</span><div>${esc(o.notes)}</div>`:""}<span>Pago</span><div>${esc(o.pay||"—")}</div><span>Canal</span><div>${esc(o.channel||"—")}</div><span>Hora</span><div>${fmtDate(o.createdAt)} ${hm(o.createdAt)} · hace ${ago(o.createdAt)}</div></div>
   ${ph.length>=8?`<p style="margin:12px 0 0;display:flex;gap:16px;flex-wrap:wrap"><a href="tel:${ph}" style="color:var(--ink)">Llamar</a><a href="https://wa.me/${ph.replace(/^0/,"61")}" target="_blank" rel="noopener" style="color:var(--ink)">WhatsApp ↗</a></p>`:""}</div>
+ <div class="btns" style="margin-bottom:8px"><button class="big alt" data-act="print">Imprimir boletas</button></div>
  <div class="btns">${o.status==="nuevo"?`<div class="etas">${[10,15,20,30].map(m=>`<button class="big${m===ETA?"":" alt"}" data-eta="${m}">Aceptar · ${m} min</button>`).join("")}</div>`:st.next?`<button class="big" data-act="adv">${st.btn} →</button>`:""}${prev?`<button class="big alt" data-act="back">Volver a ${ST[prev].s.toLowerCase()}</button>`:""}${o.status==="cancelado"?`<button class="big alt" data-act="restore">Reabrir pedido</button>`:o.status!=="entregado"?`<button class="big dng${sure?" sure":""}" data-act="cancel">${sure?"Confirmar cancelación":"Cancelar pedido"}</button>`:""}</div>
  </div></div>`;
 }
@@ -522,6 +568,8 @@ document.addEventListener("click",async e=>{
  const a=t.closest("[data-act]"),act=a?.dataset.act;
  if(act==="close"&&(a===t||a.classList.contains("x"))){closeSheet();return}
  if(act==="demo-off"){setDemo(false);return}
+ if(act==="autoprint"){setAutoPrint(!autoPrintOn());render();toast(autoPrintOn()?"Las boletas se imprimen solas al llegar cada pedido":"Impresión automática desactivada");return}
+ if(act==="testprint"){printOrder({id:"prueba",num:1000,createdAt:Date.now(),etaAt:Date.now()+15*6e4,customer:"Prueba",phone:"0400 000 000",items:[{n:"Twin I (Extra Beef)",q:2,u:23},{n:"Fries",q:1,u:6},{n:"Coke & Coke Zero (Coke Zero Sugar)",q:1,u:5}],notes:"Sin cebolla",total:57,pay:"Pagado online"});return}
  if(act==="pause"&&CFG){a.disabled=true;const {error}=await supa.from("settings").update({accepting:!CFG.accepting}).eq("id",1);if(error)toast("No se pudo cambiar. Intenta de nuevo.");else toast(CFG.accepting?"Pedidos online pausados":"Pedidos online reanudados");await loadLocal();render();return}
  const sdb=t.closest("[data-sold]");if(sdb){const it=MENU_ITEMS.find(x=>x.id===sdb.dataset.sold);if(it){sdb.disabled=true;const {error}=await supa.from("menu_items").update({sold_out:!it.sold_out}).eq("id",it.id);if(error)toast("No se pudo cambiar. Intenta de nuevo.");await loadLocal();render()}return}
  const wc=t.closest("[data-wcopy]");if(wc){const w=weeks().find(x=>x.key===wc.dataset.wcopy);if(w){try{await navigator.clipboard.writeText(weekText(w));toast("Resumen copiado")}catch(_){toast(weekText(w))}}return}
@@ -543,6 +591,7 @@ document.addEventListener("click",async e=>{
   if(act==="back"){const p=FLOW[FLOW.indexOf(o.status)-1];await patch(o,{status:p});drawOrder();return}
   if(act==="cancel"){if(!sure){sure=true;drawOrder();return}await patch(o,{status:"cancelado",t_cancelado:Date.now()});closeSheet();toast("Pedido #"+o.num+" cancelado");return}
   if(act==="restore"){await patch(o,{status:"nuevo"});drawOrder();return}
+  if(act==="print"){printOrder(o);return}
   if(act==="copy"){try{await navigator.clipboard.writeText(o.phone);toast("Teléfono copiado")}catch(_){toast(o.phone)}return}
  }
  if(form){
