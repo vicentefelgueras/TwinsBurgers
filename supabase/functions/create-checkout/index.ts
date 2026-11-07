@@ -37,7 +37,27 @@ Deno.serve(async (req) => {
     };
     const ph = auPhone(o.customer_phone);
     if (ph) body.pre_populated_data = { buyer_phone_number: ph };
-    const r = await sq("/v2/online-checkout/payment-links", a.access_token, body);
+    // Pedido para retirar: así aparece en Square (Order Manager) y la impresora conectada a Square lo imprime al pagarse.
+    (body.order as any).fulfillments = [{
+      type: "PICKUP",
+      state: "PROPOSED",
+      pickup_details: {
+        recipient: { display_name: String(o.customer_name || "Cliente").slice(0, 60), ...(ph ? { phone_number: ph } : {}) },
+        schedule_type: "ASAP",
+        prep_time_duration: "PT15M",
+        ...(o.notes ? { note: String(o.notes).slice(0, 500) } : {}),
+      },
+    }];
+    let r;
+    try {
+      r = await sq("/v2/online-checkout/payment-links", a.access_token, body);
+    } catch (e) {
+      // Si Square rechaza el retiro, el cobro no se puede caer: se reintenta sin él.
+      console.error("create-checkout: con retiro falló, reintento sin retiro", e);
+      delete (body.order as any).fulfillments;
+      body.idempotency_key = o.id + "-nf";
+      r = await sq("/v2/online-checkout/payment-links", a.access_token, body);
+    }
     const link = r.payment_link;
     await db.from("orders").update({ square_order_id: link.order_id, checkout_url: link.url }).eq("id", o.id);
     return json({ url: link.url });
