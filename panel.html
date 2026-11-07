@@ -338,7 +338,7 @@ function printedSet(){try{return new Set(JSON.parse(localStorage.getItem(PKEY)||
 function markPrinted(id){try{const s=[...printedSet(),id].slice(-300);localStorage.setItem(PKEY,JSON.stringify(s))}catch(e){}}
 function autoPrintOn(){try{return localStorage.getItem(AKEY)==="1"}catch(e){return false}}
 function setAutoPrint(v){try{localStorage.setItem(AKEY,v?"1":"0")}catch(e){}}
-function rr(){if(tab!=="local")render()}
+function rr(){if(tab!=="local"||!document.querySelector("#main .sold"))render()}
 const DAYS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 let MENU_ITEMS=[],CFG=null,STORE=null,SQ=null,PAIDW={};
 async function loadLocal(){
