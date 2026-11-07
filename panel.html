@@ -296,12 +296,17 @@ async function start(){
  if(SQRET&&role==="admin"){tab="local";render();toast(SQMSG[SQRET]||"Listo");SQRET=null}
  chan=supa.channel("orders-live").on("postgres_changes",{event:"*",schema:"public",table:"orders"},p=>{const id=(p.new&&p.new.id)||(p.old&&p.old.id);if(id)refreshOne(id)}).subscribe();
 }
-async function loadAll(){
+async function fetchOrders(sinceIso){let all=[],from=0;
+ for(;;){const {data,error}=await supa.from("orders").select("*,order_items(*)").gte("created_at",sinceIso).order("created_at",{ascending:false}).range(from,from+999);
+  if(error)return{error};all=all.concat(data||[]);if(!data||data.length<1000||all.length>=30000)break;from+=1000}
+ return{data:all}}
+async function loadAll(full=true){
  lastLoad=Date.now();
- const since=new Date(dayStart(Date.now())-60*DAY).toISOString();
- const {data,error}=await supa.from("orders").select("*,order_items(*)").gte("created_at",since).order("created_at",{ascending:false}).limit(1000);
- if(error){dbState="err";render();return}
- real=data.map(mapRow);dbState="ok";checkNew();rr();if(openId)drawOrder();
+ const since=new Date(full?dayStart(Date.now())-60*DAY:Date.now()-DAY).toISOString();
+ const {data,error}=await fetchOrders(since);
+ if(error){if(full){dbState="err";render()}return}
+ if(full)real=data.map(mapRow);else{const m=new Map(real.map(o=>[o.id,o]));data.forEach(r=>m.set(r.id,mapRow(r)));real=[...m.values()].sort((a,b)=>b.createdAt-a.createdAt)}
+ dbState="ok";checkNew();rr();if(openId)drawOrder();
 }
 async function refreshOne(id){
  const {data}=await supa.from("orders").select("*,order_items(*)").eq("id",id).maybeSingle();
@@ -606,7 +611,7 @@ document.addEventListener("click",async e=>{
 document.addEventListener("change",e=>{const m=/^h-c(\d)$/.exec(e.target.id||"");if(m){$("#h-o"+m[1]).disabled=e.target.checked;$("#h-x"+m[1]).disabled=e.target.checked}});
 document.addEventListener("input",e=>{if(form&&e.target.id==="f-fee"){syncForm();const s=form.lines.reduce((a,l)=>a+l.u*l.q,0);const el=$("#f-tot");if(el)el.textContent=money(s+(+form.fee||0))}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&(openId||form))closeSheet()});
-setInterval(()=>{if(role&&Date.now()-lastLoad>60000){loadAll();loadLocal().then(()=>{if(tab!=="local")render()})}if(tab==="pedidos"&&!document.hidden)render();if(openId)drawOrder()},30000);
+setInterval(()=>{if(role&&Date.now()-lastLoad>120000){loadAll(false);loadLocal().then(()=>{if(tab!=="local")render()})}if(tab==="pedidos"&&!document.hidden)render();if(openId)drawOrder()},30000);
 boot();
 </script>
 </body></html>
