@@ -270,7 +270,7 @@ const PAYL={pendiente:"Paga al retirar",pagado:"Pagado online",en_local:"Pagado 
 function mapRow(r){const acc=r.accepted_at?Date.parse(r.accepted_at):null;
  return{id:r.id,num:r.num,createdAt:Date.parse(r.created_at),status:r.status==="retirado"?"entregado":r.status,customer:r.customer_name,phone:r.customer_phone,address:"",notes:r.notes||"",
   items:(r.order_items||[]).slice().sort((x,y)=>x.id-y.id).map(i=>({n:i.name+(i.options&&i.options.length?" ("+i.options.join(", ")+")":""),q:i.qty,u:i.unit_cents/100})),
-  subtotal:r.subtotal_cents/100,fee:0,total:r.total_cents/100,commission:(r.commission_cents||0)/100,pay:PAYL[r.pay_status]||r.pay_status,channel:r.channel,
+  subtotal:r.subtotal_cents/100,fee:Math.max(0,(r.total_cents-r.subtotal_cents)/100),total:r.total_cents/100,commission:(r.commission_cents||0)/100,pay:PAYL[r.pay_status]||r.pay_status,channel:r.channel,
   etaAt:acc&&r.eta_min?acc+r.eta_min*6e4:null,t_entregado:r.picked_up_at?Date.parse(r.picked_up_at):null}}
 async function boot(){
  dbState="loading";render();
@@ -330,7 +330,7 @@ function ticketsHTML(o){
  const cli=`<div class="tk"><div class="brand">TWINS BURGERS</div><div class="c">Palm Beach · Pedido para retirar</div><hr>
   <div class="num c">#${o.num}</div><div class="c who">${esc(o.customer||"Cliente")}</div><div class="c">${esc(o.phone||"")} · ${d}</div><hr>
   ${(o.items||[]).map(l=>`<div class="row"><span>${l.q} × ${esc(l.n)}</span><span>${money(l.u*l.q)}</span></div>`).join("")}<hr>
-  <div class="row tot"><span>TOTAL</span><span>${money(o.total)}</span></div><div class="row"><span>${esc(o.pay||"")}</span><span>AUD</span></div>
+  ${o.fee>0?`<div class="row"><span>Subtotal</span><span>${money(o.subtotal)}</span></div><div class="row"><span>${o.channel==="Sitio web"?"Service fee 3%":"Envío"}</span><span>${money(o.fee)}</span></div>`:""}<div class="row tot"><span>TOTAL</span><span>${money(o.total)}</span></div><div class="row"><span>${esc(o.pay||"")}</span><span>AUD</span></div>
   ${o.notes?`<div class="row"><span>Notas: ${esc(o.notes)}</span></div>`:""}<hr><div class="c">¡Gracias! / Thank you!</div></div>`;
  return kit+cli}
 let printQ=[],printing=false;
@@ -511,7 +511,7 @@ function drawOrder(){
  $("#sheet").innerHTML=`<div class="ov" data-act="close"><div class="sh" role="dialog" aria-modal="true" aria-label="Pedido ${o.num}">
  <div class="shh"><h2>Pedido #${o.num}</h2><span class="chip c-${o.status}" style="margin:0">${st.s||""}</span><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
  <div class="sec"><h4>Productos</h4>${(o.items||[]).map(l=>`<div class="ln"><span class="nm">${l.q}× ${esc(l.n)}</span><b>${money(l.u*l.q)}</b></div>`).join("")}
-  <div class="ln"><span class="nm"><b>Total</b></span><b>${money(o.total)}</b></div></div>
+  ${o.fee>0?`<div class="ln"><span class="nm">${o.channel==="Sitio web"?"Cargo online 3% (lo paga el cliente)":"Envío"}</span><b>${money(o.fee)}</b></div>`:""}<div class="ln"><span class="nm"><b>Total</b></span><b>${money(o.total)}</b></div></div>
  <div class="sec"><h4>Cliente</h4><div class="kv"><span>Nombre</span><div>${esc(o.customer||"—")}</div><span>Teléfono</span><div>${o.phone?`${esc(o.phone)} <button class="ghost" data-act="copy" style="padding:3px 8px;margin-left:6px">Copiar</button>`:"—"}</div><span>Entrega</span><div>Retira en el local${o.etaAt?" · listo a las "+hm(o.etaAt):""}</div>${o.notes?`<span>Notas</span><div>${esc(o.notes)}</div>`:""}<span>Pago</span><div>${esc(o.pay||"—")}</div><span>Canal</span><div>${esc(o.channel||"—")}</div><span>Hora</span><div>${fmtDate(o.createdAt)} ${hm(o.createdAt)} · hace ${ago(o.createdAt)}</div></div>
   ${ph.length>=8?`<p style="margin:12px 0 0;display:flex;gap:16px;flex-wrap:wrap"><a href="tel:${ph}" style="color:var(--ink)">Llamar</a><a href="https://wa.me/${ph.replace(/^0/,"61")}" target="_blank" rel="noopener" style="color:var(--ink)">WhatsApp ↗</a></p>`:""}</div>
  <div class="btns" style="margin-bottom:8px"><button class="big alt" data-act="print">Imprimir boletas</button></div>

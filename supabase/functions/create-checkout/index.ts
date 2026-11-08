@@ -16,6 +16,8 @@ Deno.serve(async (req) => {
   try {
     const a = await sellerAuth(db);
     const items = (o.order_items ?? []).slice().sort((x: any, y: any) => x.id - y.id);
+    // Cargo online: lo que falta entre la suma de productos y el total del pedido (3% calculado en la base de datos).
+    const fee = Math.max(0, o.total_cents - items.reduce((s: number, i: any) => s + i.unit_cents * i.qty, 0));
     const body: Record<string, unknown> = {
       idempotency_key: o.id,
       description: "Twins Burgers #" + o.num,
@@ -26,7 +28,11 @@ Deno.serve(async (req) => {
           name: i.name + (i.options?.length ? " (" + i.options.join(", ") + ")" : ""),
           quantity: String(i.qty),
           base_price_money: { amount: i.unit_cents, currency: "AUD" },
-        })),
+        })).concat(fee > 0 ? [{
+          name: "Online service fee (3%)",
+          quantity: "1",
+          base_price_money: { amount: fee, currency: "AUD" },
+        }] : []),
       },
       checkout_options: {
         redirect_url: SITE_URL + "?order=" + o.id,
