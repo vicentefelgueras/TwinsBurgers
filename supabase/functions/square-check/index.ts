@@ -9,14 +9,14 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
   const { data: isAdmin } = await user.rpc("is_admin");
-  if (isAdmin !== true) return json({ error: "Solo un administrador puede verificar Square." }, 403);
-  if (!ENV_TOKEN) return json({ error: "Falta cargar el token de Square del dueño en Supabase." }, 400);
-  if (!Deno.env.get("SQUARE_WEBHOOK_KEY")) return json({ error: "Falta cargar la clave del webhook de Square en Supabase." }, 400);
+  if (isAdmin !== true) return json({ error: "Only an admin can verify Square." }, 403);
+  if (!ENV_TOKEN) return json({ error: "The owner's Square token is missing in Supabase." }, 400);
+  if (!Deno.env.get("SQUARE_WEBHOOK_KEY")) return json({ error: "The Square webhook key is missing in Supabase." }, 400);
   try {
     const locs = await sq("/v2/locations", ENV_TOKEN);
     const list = locs.locations ?? [];
     const loc = list.find((l: any) => l.status === "ACTIVE" && l.currency === "AUD") ?? list.find((l: any) => l.status === "ACTIVE");
-    if (!loc) return json({ error: "La cuenta Square no tiene un local activo." }, 400);
+    if (!loc) return json({ error: "The Square account has no active location." }, 400);
     const { error } = await adminClient().from("square_auth").upsert({
       id: 1, env: ENV, merchant_id: loc.merchant_id ?? "", access_token: "(secreto en Supabase)", refresh_token: null,
       expires_at: null, location_id: loc.id, location_name: loc.name ?? "", connected_at: new Date().toISOString(),
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     return json({ ok: true, env: ENV, location_name: loc.name ?? "", currency: loc.currency ?? "" });
   } catch (e) {
     console.error("square-check", e);
-    const msg = String(e).includes("401") ? "El token de Square no es válido o es de otro modo (sandbox/producción)." : "No se pudo verificar Square. Revisa el token.";
+    const msg = String(e).includes("401") ? "The Square token is invalid or from another mode (sandbox/production)." : "Couldn't verify Square. Check the token.";
     return json({ error: msg }, 400);
   }
 });

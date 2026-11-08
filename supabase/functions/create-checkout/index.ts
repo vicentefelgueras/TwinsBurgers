@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
         ask_for_shipping_address: false,
         allow_tipping: false,
       },
-      payment_note: "Twins Burgers pedido #" + o.num,
+      payment_note: "Twins Burgers order #" + o.num,
     };
     const ph = auPhone(o.customer_phone);
     if (ph) body.pre_populated_data = { buyer_phone_number: ph };
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       type: "PICKUP",
       state: "PROPOSED",
       pickup_details: {
-        recipient: { display_name: String(o.customer_name || "Cliente").slice(0, 60), ...(ph ? { phone_number: ph } : {}) },
+        recipient: { display_name: String(o.customer_name || "Customer").slice(0, 60), ...(ph ? { phone_number: ph } : {}) },
         schedule_type: "ASAP",
         prep_time_duration: "PT15M",
         ...(o.notes ? { note: String(o.notes).slice(0, 500) } : {}),

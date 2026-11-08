@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Panel Twins Burgers</title>
+<title>Twins Burgers · Orders</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Instrument+Serif:ital@0;1&display=swap">
 <style>
 /* Layout: black brand bar like the site's marquee, then an iFood-style order board (4 status columns; one at a time on phones) and a Sales tab. */
@@ -194,15 +194,15 @@ input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 </head><body>
 <header class="top"><div class="in gut">
-  <div class="logo">TWINS<i>gestor de pedidos</i></div>
+  <div class="logo">TWINS<i>order manager</i></div>
   <nav class="tabs" role="tablist">
-    <button role="tab" id="t-ped" aria-selected="true" data-tab="pedidos">Pedidos</button>
-    <button role="tab" id="t-ven" aria-selected="false" data-tab="ventas">Ventas</button>
-    <button role="tab" id="t-loc" aria-selected="false" data-tab="local">Local</button>
+    <button role="tab" id="t-ped" aria-selected="true" data-tab="pedidos">Orders</button>
+    <button role="tab" id="t-ven" aria-selected="false" data-tab="ventas">Sales</button>
+    <button role="tab" id="t-loc" aria-selected="false" data-tab="local">Store</button>
   </nav>
-  <a class="sndbtn" href="./" style="text-decoration:none">Ver sitio</a><button class="sndbtn" id="snd" aria-pressed="false">Activar sonido</button><button class="new" id="btn-out" hidden>Salir</button>
+  <a class="sndbtn" href="./" style="text-decoration:none">View site</a><button class="sndbtn" id="snd" aria-pressed="false">Turn on sound</button><button class="new" id="btn-out" hidden>Log out</button>
 </div></header>
-<main class="main gut" id="main"><p style="color:var(--mut)">Cargando pedidos…</p></main>
+<main class="main gut" id="main"><p style="color:var(--mut)">Loading orders…</p></main>
 <div id="sheet"></div>
 <div id="printarea" aria-hidden="true"></div>
 <div id="toast"></div>
@@ -214,17 +214,18 @@ const MENU=[
  ["Sweets",[["Oreo Dessert",8]]],
  ["Drinks",[["Coke Classic",5],["Coke Zero Sugar",5],["Jarritos Mandarin",7],["Jarritos Guava",7],["Jarritos Mango",7],["Water",5]]]];
 const ST={
- nuevo:{t:"Nuevos",s:"Nuevo",next:"prep",btn:"Aceptar",c:"var(--cheese)"},
- prep:{t:"En preparación",s:"Preparando",next:"listo",btn:"Listo",c:"var(--bun)"},
- listo:{t:"Listos para retirar",s:"Listo",next:"entregado",btn:"Retirado",c:"var(--ok)"},
- entregado:{t:"Retirados hoy",s:"Retirado",c:"var(--mut)"},
- cancelado:{t:"Cancelados",s:"Cancelado",c:"var(--bad)"}};
+ nuevo:{t:"New",s:"New",next:"prep",btn:"Accept",c:"var(--cheese)"},
+ prep:{t:"Preparing",s:"Preparing",next:"listo",btn:"Ready",c:"var(--bun)"},
+ listo:{t:"Ready for pickup",s:"Ready",next:"entregado",btn:"Picked up",c:"var(--ok)"},
+ entregado:{t:"Picked up today",s:"Picked up",c:"var(--mut)"},
+ cancelado:{t:"Cancelled",s:"Cancelled",c:"var(--bad)"}};
 const FLOW=["nuevo","prep","listo","entregado"];
-const PAYS=["Tarjeta","Efectivo","Transferencia"],CHANS=["WhatsApp","Mostrador","Teléfono"];
+const PAYS=["Paid online","Paid in store","Pay at pickup","Card","Cash","Bank transfer"],CHANS=["Online","Walk-in","WhatsApp","Phone"];
+const CHL={"Sitio web":"Online","Mostrador":"Walk-in","Teléfono":"Phone"},chL=c=>CHL[c]||c;
 let seen=null,soundOn=false,actx=null;
 function beep(){if(!soundOn||!actx)return;[0,.35].forEach(d=>{const t=actx.currentTime+d,o=actx.createOscillator(),g=actx.createGain();o.type="square";o.frequency.value=880;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.18,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.28);o.connect(g).connect(actx.destination);o.start(t);o.stop(t+.3)})}
 const baseTitle=document.title;
-function alertNew(n){beep();toast(n>1?n+" pedidos nuevos":"Nuevo pedido");try{document.title="● Nuevo pedido · "+baseTitle}catch(e){}}
+function alertNew(n){beep();toast(n>1?n+" new orders":"New order");try{document.title="● New order · "+baseTitle}catch(e){}}
 addEventListener("focus",()=>{try{document.title=baseTitle}catch(e){}});
 const LATE_MIN=25;
 
@@ -237,7 +238,7 @@ const dayStart=t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
 const DAY=864e5;
 const fmtDate=t=>{const d=new Date(t);return pad(d.getDate())+"/"+pad(d.getMonth()+1)};
 function mins(t){return Math.max(0,Math.floor((Date.now()-t)/6e4))}
-function ago(t){const m=mins(t);if(m<1)return"ahora";if(m<60)return m+" min";const h=Math.floor(m/60);return h+" h "+(m%60)+" min"}
+function ago(t){const m=mins(t);if(m<1)return"just now";if(m<60)return m+" min";const h=Math.floor(m/60);return h+" h "+(m%60)+" min"}
 
 let db=null,dbState="loading",real=[],demo=false,demoOrders=[],tab="pedidos",col="nuevo",period="hoy",busy=new Set();
 try{if(localStorage.getItem("tw-tab"))tab=localStorage.getItem("tw-tab")}catch(e){}
@@ -258,19 +259,19 @@ function makeDemo(){
  for(let d=29;d>=0;d--){const base=today-d*DAY,wk=new Date(base).getDay();const n=d===0?0:(wk===5||wk===6?9:4)+Math.floor(r()*5);
   for(let i=0;i<n;i++){const t=base+(11+Math.floor(r()*10))*36e5+Math.floor(r()*60)*6e4;out.push(mk(t,r()<.04?"cancelado":"entregado"))}}
  const now=Date.now();[[95,"entregado"],[80,"entregado"],[64,"entregado"],[50,"entregado"],[38,"listo"],[29,"prep"],[17,"prep"],[9,"nuevo"],[3,"nuevo"]].forEach(([m,st])=>{const t=now-m*6e4;if(t>today)out.push(mk(t,st))});
- function mk(t,st){const items=pick(),sub=items.reduce((a,l)=>a+l.u*l.q,0),fee=r()<.8?6:0,ch=r()<.75?"WhatsApp":r()<.5?"Mostrador":"Teléfono";
-  return{id:"demo"+(++num),num,createdAt:t,status:st,customer:names[Math.floor(r()*names.length)],phone:"",address:ch==="Mostrador"?"":"Palm Beach",notes:"",items,subtotal:sub,fee:ch==="Mostrador"?0:fee,total:sub+(ch==="Mostrador"?0:fee),pay:PAYS[Math.floor(r()*3)],channel:ch}}
+ function mk(t,st){const items=pick(),sub=items.reduce((a,l)=>a+l.u*l.q,0),fee=r()<.8?6:0,ch=r()<.75?"WhatsApp":r()<.5?"Walk-in":"Phone";
+  return{id:"demo"+(++num),num,createdAt:t,status:st,customer:names[Math.floor(r()*names.length)],phone:"",address:ch==="Walk-in"?"":"Palm Beach",notes:"",items,subtotal:sub,fee:ch==="Walk-in"?0:fee,total:sub+(ch==="Walk-in"?0:fee),pay:PAYS[Math.floor(r()*3)],channel:ch}}
  return out.sort((a,b)=>b.createdAt-a.createdAt);
 }
 
 /* ---------- store ---------- */
 const SB_URL="https://qpwjbdqxheceoavusjca.supabase.co",SB_KEY="sb_publishable_rgSTvxNwInuW311POLFvQQ_PEmwuzWJ";
 let supa=null,session=null,role=null,chan=null,ETA=15,PCT=3,lastLoad=0;
-const PAYL={pendiente:"Paga al retirar",pagado:"Pagado online",en_local:"Pagado en el local",reembolsado:"Reembolsado",fallido:"Pago fallido"};
+const PAYL={pendiente:"Pay at pickup",pagado:"Paid online",en_local:"Paid in store",reembolsado:"Refunded",fallido:"Payment failed"};
 function mapRow(r){const acc=r.accepted_at?Date.parse(r.accepted_at):null;
  return{id:r.id,num:r.num,createdAt:Date.parse(r.created_at),status:r.status==="retirado"?"entregado":r.status,customer:r.customer_name,phone:r.customer_phone,address:"",notes:r.notes||"",
   items:(r.order_items||[]).slice().sort((x,y)=>x.id-y.id).map(i=>({n:i.name+(i.options&&i.options.length?" ("+i.options.join(", ")+")":""),q:i.qty,u:i.unit_cents/100})),
-  subtotal:r.subtotal_cents/100,fee:Math.max(0,(r.total_cents-r.subtotal_cents)/100),total:r.total_cents/100,commission:(r.commission_cents||0)/100,pay:PAYL[r.pay_status]||r.pay_status,channel:r.channel,
+  subtotal:r.subtotal_cents/100,fee:Math.max(0,(r.total_cents-r.subtotal_cents)/100),total:r.total_cents/100,commission:(r.commission_cents||0)/100,pay:PAYL[r.pay_status]||r.pay_status,channel:chL(r.channel),
   etaAt:acc&&r.eta_min?acc+r.eta_min*6e4:null,t_entregado:r.picked_up_at?Date.parse(r.picked_up_at):null}}
 async function boot(){
  dbState="loading";render();
@@ -279,7 +280,7 @@ async function boot(){
  supa.auth.onAuthStateChange((ev,s)=>{const had=session?session.user.id:null;session=s;if((s?s.user.id:null)!==had)start()});
  start();
 }
-const SQMSG={ok:"Square quedó conectado.",cancelado:"Se canceló la conexión con Square.",expirado:"El link de Square venció. Genera uno nuevo.",sin_local:"La cuenta Square no tiene un local activo.",error:"No se pudo conectar Square. Intenta de nuevo."};
+const SQMSG={ok:"Square is connected.",cancelado:"The Square connection was cancelled.",expirado:"The Square link expired. Create a new one.",sin_local:"The Square account has no active location.",error:"Couldn't connect Square. Please try again."};
 let SQRET=null;try{const q=new URLSearchParams(location.search).get("square");if(q){SQRET=q;history.replaceState(null,"",location.pathname)}}catch(e){}
 async function start(){
  if(chan){try{supa.removeChannel(chan)}catch(e){}chan=null}
@@ -293,7 +294,7 @@ async function start(){
  if(role!=="admin"&&tab==="ventas")tab="pedidos";
  await loadLocal();
  await loadAll();
- if(SQRET&&role==="admin"){tab="local";render();toast(SQMSG[SQRET]||"Listo");SQRET=null}
+ if(SQRET&&role==="admin"){tab="local";render();toast(SQMSG[SQRET]||"Done");SQRET=null}
  chan=supa.channel("orders-live").on("postgres_changes",{event:"*",schema:"public",table:"orders"},p=>{const id=(p.new&&p.new.id)||(p.old&&p.old.id);if(id)refreshOne(id)}).subscribe();
 }
 async function fetchOrders(sinceIso){let all=[],from=0;
@@ -316,22 +317,22 @@ async function refreshOne(id){
 }
 function checkNew(){const nids=new Set(real.filter(o=>o.status==="nuevo").map(o=>o.id));if(seen){const fresh=[...nids].filter(i=>!seen.has(i));if(fresh.length){alertNew(fresh.length);if(autoPrintOn()){const done=printedSet();fresh.forEach(id=>{const o=real.find(x=>x.id===id);if(o&&!done.has(id))printOrder(o)})}}}seen=nids}
 async function logout(){try{await supa.auth.signOut()}catch(e){}session=null;start()}
-function loginHTML(){return`<div class="lock"><h1>Panel Twins Burgers</h1><p>Entra con tu correo y contraseña.</p><form id="lf"><label for="le">Correo</label><input type="email" id="le" autocomplete="username" required><label for="lp">Contraseña</label><input type="password" id="lp" autocomplete="current-password" required><p class="err" id="lerr"></p><button class="big" type="submit" style="width:100%">Entrar</button></form></div>`}
+function loginHTML(){return`<div class="lock"><h1>Twins Burgers Orders</h1><p>Log in with your email and password.</p><form id="lf"><label for="le">Email</label><input type="email" id="le" autocomplete="username" required><label for="lp">Password</label><input type="password" id="lp" autocomplete="current-password" required><p class="err" id="lerr"></p><button class="big" type="submit" style="width:100%">Log in</button></form></div>`}
 document.addEventListener("submit",async e=>{if(e.target.id!=="lf")return;e.preventDefault();const b=e.target.querySelector("button");b.disabled=true;
  const {error}=await supa.auth.signInWithPassword({email:$("#le").value.trim(),password:$("#lp").value});
- if(error){b.disabled=false;$("#lerr").textContent="Correo o contraseña incorrectos."}});
+ if(error){b.disabled=false;$("#lerr").textContent="Wrong email or password."}});
 function setDemo(){}
 const splitOpt=n=>{const m=/^(.*?)\s\((.*)\)$/.exec(n);return m?[m[1],m[2]]:[n,""]};
 function ticketsHTML(o){
  const when=new Date(o.createdAt),d=pad(when.getDate())+"/"+pad(when.getMonth()+1)+" "+hm(o.createdAt);
- const kit=`<div class="tk"><div class="hd"><span>COCINA</span><span>${hm(o.createdAt)}</span></div><div class="num">#${o.num}</div><div class="who">${esc(o.customer||"Cliente")} · RETIRO</div>${o.etaAt?`<div>Listo a las ${hm(o.etaAt)}</div>`:""}<hr>
+ const kit=`<div class="tk"><div class="hd"><span>KITCHEN</span><span>${hm(o.createdAt)}</span></div><div class="num">#${o.num}</div><div class="who">${esc(o.customer||"Customer")} · PICKUP</div>${o.etaAt?`<div>Ready at ${hm(o.etaAt)}</div>`:""}<hr>
   ${(o.items||[]).map(l=>{const [n,op]=splitOpt(l.n);return`<div class="it">${l.q} × ${esc(n)}</div>${op?`<div class="op">${esc(op)}</div>`:""}`}).join("")}
-  ${o.notes?`<div class="nt">NOTAS: ${esc(o.notes)}</div>`:""}</div>`;
- const cli=`<div class="tk"><div class="brand">TWINS BURGERS</div><div class="c">Palm Beach · Pedido para retirar</div><hr>
-  <div class="num c">#${o.num}</div><div class="c who">${esc(o.customer||"Cliente")}</div><div class="c">${esc(o.phone||"")} · ${d}</div><hr>
+  ${o.notes?`<div class="nt">NOTES: ${esc(o.notes)}</div>`:""}</div>`;
+ const cli=`<div class="tk"><div class="brand">TWINS BURGERS</div><div class="c">Palm Beach · Pickup order</div><hr>
+  <div class="num c">#${o.num}</div><div class="c who">${esc(o.customer||"Customer")}</div><div class="c">${esc(o.phone||"")} · ${d}</div><hr>
   ${(o.items||[]).map(l=>`<div class="row"><span>${l.q} × ${esc(l.n)}</span><span>${money(l.u*l.q)}</span></div>`).join("")}<hr>
-  ${o.fee>0?`<div class="row"><span>Subtotal</span><span>${money(o.subtotal)}</span></div><div class="row"><span>${o.channel==="Sitio web"?"Service fee 3%":"Envío"}</span><span>${money(o.fee)}</span></div>`:""}<div class="row tot"><span>TOTAL</span><span>${money(o.total)}</span></div><div class="row"><span>${esc(o.pay||"")}</span><span>AUD</span></div>
-  ${o.notes?`<div class="row"><span>Notas: ${esc(o.notes)}</span></div>`:""}<hr><div class="c">¡Gracias! / Thank you!</div></div>`;
+  ${o.fee>0?`<div class="row"><span>Subtotal</span><span>${money(o.subtotal)}</span></div><div class="row"><span>${o.channel==="Online"?"Online service fee 3%":"Delivery"}</span><span>${money(o.fee)}</span></div>`:""}<div class="row tot"><span>TOTAL</span><span>${money(o.total)}</span></div><div class="row"><span>${esc(o.pay||"")}</span><span>AUD</span></div>
+  ${o.notes?`<div class="row"><span>Notes: ${esc(o.notes)}</span></div>`:""}<hr><div class="c">Thank you!</div></div>`;
  return kit+cli}
 let printQ=[],printing=false;
 function printOrder(o){printQ.push(o);if(!printing)runPrint()}
@@ -344,49 +345,49 @@ function markPrinted(id){try{const s=[...printedSet(),id].slice(-300);localStora
 function autoPrintOn(){try{return localStorage.getItem(AKEY)==="1"}catch(e){return false}}
 function setAutoPrint(v){try{localStorage.setItem(AKEY,v?"1":"0")}catch(e){}}
 function rr(){if(tab!=="local"||!document.querySelector("#main .sold"))render()}
-const DAYS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+const DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 let MENU_ITEMS=[],CFG=null,STORE=null,SQ=null,PAIDW={};
 async function loadLocal(){
  const [a,b,c]=await Promise.all([supa.from("menu_items").select("id,category,name,sold_out,active,sort").order("sort"),supa.from("settings").select("*").maybeSingle(),supa.rpc("store_status")]);
  if(role==="admin"){const d=await supa.rpc("square_status");if(!d.error)SQ=d.data;const w=await supa.from("commission_payments").select("week_start,amount_cents,paid_at");if(!w.error){PAIDW={};(w.data||[]).forEach(x=>PAIDW[x.week_start]=x)}}
  if(!a.error)MENU_ITEMS=a.data||[];if(!b.error&&b.data){CFG=b.data;ETA=CFG.default_eta_min||15;PCT=+CFG.commission_pct||3}if(!c.error)STORE=c.data}
 function sqCard(){
- const c=SQ&&SQ.connected,env=SQ&&SQ.env==="production"?"real":"de prueba (sandbox)";
- return`<div class="panel"><h3>Pagos con Square</h3>
-  <p class="note">${c?`Conectado a ${esc(SQ.location_name||"la cuenta del dueño")}, en modo ${env}. El dinero va completo a la cuenta Square del dueño.`:"Falta cargar en Supabase el token de Square del dueño y la clave del webhook. Después toca Verificar."}</p>
+ const c=SQ&&SQ.connected,env=SQ&&SQ.env==="production"?"live":"test (sandbox)";
+ return`<div class="panel"><h3>Square payments</h3>
+  <p class="note">${c?`Connected to ${esc(SQ.location_name||"the owner's account")}, ${env} mode. All money goes to the owner's Square account.`:"The owner's Square token and webhook key still need to be added in Supabase. Then tap Verify."}</p>
   <div class="btns">
-   <button class="big${c?" alt":""}" data-act="sqcheck">${c?"Verificar de nuevo":"Verificar conexión con Square"}</button>
-   ${c?`<button class="big${SQ.require_payment?" dng":""}" data-act="sqpay">${SQ.require_payment?"Dejar de cobrar online":"Cobrar online al pedir"}</button>`:""}
+   <button class="big${c?" alt":""}" data-act="sqcheck">${c?"Verify again":"Verify Square connection"}</button>
+   ${c?`<button class="big${SQ.require_payment?" dng":""}" data-act="sqpay">${SQ.require_payment?"Stop online payments":"Take payment online when ordering"}</button>`:""}
   </div>
-  <p class="note" style="margin:10px 0 0">${SQ&&SQ.require_payment?"Los clientes pagan con Square al hacer el pedido. El pedido aparece en el panel cuando el pago se confirma.":"Ahora los clientes pagan al retirar."}</p>
+  <p class="note" style="margin:10px 0 0">${SQ&&SQ.require_payment?"Customers pay with Square when they order. The order shows up here once the payment is confirmed.":"Customers currently pay at pickup."}</p>
  </div>`}
-function storePill(){if(!CFG)return"";if(!CFG.accepting)return`<span class="chip c-late" style="margin:0">Pausado</span>`;if(STORE&&!STORE.open)return`<span class="chip c-prep" style="margin:0">Fuera de horario</span>`;return`<span class="chip c-listo" style="margin:0">Recibiendo pedidos</span>`}
+function storePill(){if(!CFG)return"";if(!CFG.accepting)return`<span class="chip c-late" style="margin:0">Paused</span>`;if(STORE&&!STORE.open)return`<span class="chip c-prep" style="margin:0">Closed (outside hours)</span>`;return`<span class="chip c-listo" style="margin:0">Taking orders</span>`}
 function local(){
- if(!CFG)return`<p style="color:var(--mut)">Cargando…</p>`;
+ if(!CFG)return`<p style="color:var(--mut)">Loading…</p>`;
  const isA=role==="admin",cats=[...new Set(MENU_ITEMS.map(i=>i.category))],hrs=CFG.hours||{};
- const state=!CFG.accepting?"Pausados: el sitio no acepta pedidos hasta que los reanudes.":STORE&&!STORE.open?"Fuera de horario: el sitio no acepta pedidos en este momento.":"El sitio está aceptando pedidos.";
- const edit=`<div class="hrs">${DAYS.map((d,i)=>{const w=hrs[String(i+1)];return`<div class="hr"><span>${d}</span><label class="ck"><input type="checkbox" id="h-c${i+1}"${w?"":" checked"}> Cerrado</label><input type="time" id="h-o${i+1}" aria-label="${d}, apertura" value="${w?w[0]:"16:00"}"${w?"":" disabled"}><input type="time" id="h-x${i+1}" aria-label="${d}, cierre" value="${w?w[1]:"20:00"}"${w?"":" disabled"}></div>`}).join("")}</div>
-   <label class="ck" style="margin-top:14px"><input type="checkbox" id="h-enf"${CFG.enforce_hours?" checked":""}> Aplicar el horario en el sitio</label>
-   <label for="h-eta">Tiempo de preparación por defecto</label><select id="h-eta">${[10,15,20,25,30].map(m=>`<option value="${m}"${m===ETA?" selected":""}>${m} min</option>`).join("")}</select>
-   <p class="err" id="h-err"></p><button class="big" data-act="savehrs" style="width:100%">Guardar horario</button>`;
- const view=`<div class="kv">${DAYS.map((d,i)=>{const w=hrs[String(i+1)];return`<span>${d}</span><div>${w?w[0]+" a "+w[1]:"Cerrado"}</div>`}).join("")}</div>`;
- return`<div class="sum"><h1>Local</h1>${storePill()}</div>
+ const state=!CFG.accepting?"Paused: the site won't take orders until you resume.":STORE&&!STORE.open?"Outside opening hours: the site isn't taking orders right now.":"The site is taking orders.";
+ const edit=`<div class="hrs">${DAYS.map((d,i)=>{const w=hrs[String(i+1)];return`<div class="hr"><span>${d}</span><label class="ck"><input type="checkbox" id="h-c${i+1}"${w?"":" checked"}> Closed</label><input type="time" id="h-o${i+1}" aria-label="${d}, opens" value="${w?w[0]:"16:00"}"${w?"":" disabled"}><input type="time" id="h-x${i+1}" aria-label="${d}, closes" value="${w?w[1]:"20:00"}"${w?"":" disabled"}></div>`}).join("")}</div>
+   <label class="ck" style="margin-top:14px"><input type="checkbox" id="h-enf"${CFG.enforce_hours?" checked":""}> Apply these hours on the website</label>
+   <label for="h-eta">Default prep time</label><select id="h-eta">${[10,15,20,25,30].map(m=>`<option value="${m}"${m===ETA?" selected":""}>${m} min</option>`).join("")}</select>
+   <p class="err" id="h-err"></p><button class="big" data-act="savehrs" style="width:100%">Save hours</button>`;
+ const view=`<div class="kv">${DAYS.map((d,i)=>{const w=hrs[String(i+1)];return`<span>${d}</span><div>${w?w[0]+" – "+w[1]:"Closed"}</div>`}).join("")}</div>`;
+ return`<div class="sum"><h1>Store</h1>${storePill()}</div>
  <div class="grid2">
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
-   <div class="panel"><h3>Pedidos online</h3><p class="note">${state}</p><button class="big${CFG.accepting?" dng":""}" data-act="pause" style="width:100%">${CFG.accepting?"Pausar pedidos online":"Reanudar pedidos online"}</button></div>
-   <div class="panel"><h3>Impresora de boletas</h3><p class="note">Cada pedido imprime 2 boletas de 80 mm: una para la cocina y otra para el retiro. Este ajuste vale solo para este aparato.</p>
-    <div class="btns"><button class="big${autoPrintOn()?"":" alt"}" data-act="autoprint">${autoPrintOn()?"Impresión automática: activada":"Activar impresión automática"}</button><button class="big alt" data-act="testprint">Imprimir prueba</button></div></div>
+   <div class="panel"><h3>Online orders</h3><p class="note">${state}</p><button class="big${CFG.accepting?" dng":""}" data-act="pause" style="width:100%">${CFG.accepting?"Pause online orders":"Resume online orders"}</button></div>
+   <div class="panel"><h3>Receipt printer</h3><p class="note">Each order prints 2 receipts (80 mm): one for the kitchen and one for pickup. This setting only applies to this device.</p>
+    <div class="btns"><button class="big${autoPrintOn()?"":" alt"}" data-act="autoprint">${autoPrintOn()?"Auto-print: on":"Turn on auto-print"}</button><button class="big alt" data-act="testprint">Print test</button></div></div>
    ${isA?sqCard():""}
-   <div class="panel"><h3>Horario de retiro</h3><p class="note">Hora de Gold Coast (Queensland).${CFG.enforce_hours?"":" El sitio todavía no aplica este horario."}</p>${isA?edit:view}</div>
+   <div class="panel"><h3>Pickup hours</h3><p class="note">Gold Coast time (Queensland).${CFG.enforce_hours?"":" The website isn't applying these hours yet."}</p>${isA?edit:view}</div>
   </div>
-  <div class="panel"><h3>Productos agotados</h3><p class="note">Un producto agotado no se puede pedir en el sitio.</p>
-   ${cats.map(c=>`<h4 class="cat">${esc(c)}</h4>${MENU_ITEMS.filter(i=>i.category===c).map(i=>`<div class="ln"><span class="nm">${esc(i.name)}</span><button class="sold${i.sold_out?" on":""}" data-sold="${esc(i.id)}" aria-pressed="${i.sold_out}">${i.sold_out?"Agotado":"Disponible"}</button></div>`).join("")}`).join("")}
+  <div class="panel"><h3>Sold out items</h3><p class="note">Sold out items can't be ordered on the website.</p>
+   ${cats.map(c=>`<h4 class="cat">${esc(c)}</h4>${MENU_ITEMS.filter(i=>i.category===c).map(i=>`<div class="ln"><span class="nm">${esc(i.name)}</span><button class="sold${i.sold_out?" on":""}" data-sold="${esc(i.id)}" aria-pressed="${i.sold_out}">${i.sold_out?"Sold out":"Available"}</button></div>`).join("")}`).join("")}
   </div>
  </div>`}
 
 async function patch(o,fields){
  if(busy.has(o.id))return;
- if(!supa||!session){toast("Tu sesión terminó. Entra de nuevo.");return}
+ if(!supa||!session){toast("Your session ended. Please log in again.");return}
  const now=new Date().toISOString(),u={},s=fields.status;
  if(s){u.status=s==="entregado"?"retirado":s;
   if(s==="prep"&&o.status==="nuevo"){u.accepted_at=now;u.eta_min=fields.eta||ETA}
@@ -396,7 +397,7 @@ async function patch(o,fields){
   if(s==="nuevo"){u.cancelled_at=null;u.accepted_at=null;u.eta_min=null}}
  busy.add(o.id);render();
  const {error}=await supa.from("orders").update(u).eq("id",o.id);
- if(error)toast("No se pudo guardar. Revisa la conexión e intenta de nuevo.");
+ if(error)toast("Couldn't save. Check the connection and try again.");
  busy.delete(o.id);await refreshOne(o.id);
 }
 function advance(o){const nx=ST[o.status]?.next;if(nx)return patch(o,{status:nx,["t_"+nx]:Date.now()})}
@@ -408,20 +409,20 @@ function render(){
  let h="";
  document.querySelector(".tabs").hidden=!role;document.querySelector("#t-ven").hidden=role!=="admin";$("#btn-out").hidden=!session;$("#snd").hidden=!role;
  if(dbState==="login"){m.innerHTML=loginHTML();return}
- if(dbState==="noaccess"){m.innerHTML=`<div class="lock"><h1>Sin acceso</h1><p>La cuenta ${esc(session&&session.user.email||"")} no está autorizada para este panel. Pídele acceso a Rodrigo.</p><button class="big alt" data-act="logout">Salir</button></div>`;return}
- if(dbState==="err")h+=`<div class="warn">No se pudo conectar con la base de datos. Revisa la conexión; el panel vuelve a intentarlo solo.</div>`;
- if(dbState==="loading"&&!demo){m.innerHTML=h+`<p style="color:var(--mut)">Cargando pedidos…</p>`;return}
+ if(dbState==="noaccess"){m.innerHTML=`<div class="lock"><h1>No access</h1><p>The account ${esc(session&&session.user.email||"")} isn't authorised for this panel. Ask Rodrigo for access.</p><button class="big alt" data-act="logout">Log out</button></div>`;return}
+ if(dbState==="err")h+=`<div class="warn">Couldn't connect to the database. Check the connection; the panel will retry automatically.</div>`;
+ if(dbState==="loading"&&!demo){m.innerHTML=h+`<p style="color:var(--mut)">Loading orders…</p>`;return}
  h+=tab==="pedidos"?board():tab==="ventas"?sales():local();
  m.innerHTML=h;
 }
 
-function itemsLine(o,max=3){const it=o.items||[];const li=it.slice(0,max).map(l=>`<li>${l.q}× ${esc(l.n)}</li>`).join("");return`<ul class="items">${li}${it.length>max?`<li>+${it.length-max} más</li>`:""}</ul>`}
+function itemsLine(o,max=3){const it=o.items||[];const li=it.slice(0,max).map(l=>`<li>${l.q}× ${esc(l.n)}</li>`).join("");return`<ul class="items">${li}${it.length>max?`<li>+${it.length-max} more</li>`:""}</ul>`}
 function card(o){
  const late=o.status!=="entregado"&&mins(o.createdAt)>=LATE_MIN,st=ST[o.status];
- if(o.status==="entregado")return`<div class="card mini" data-open="${esc(o.id)}"><span class="num">#${o.num}</span><span class="who">${esc(o.customer||"Cliente")}</span><span class="age">${hm(o.t_entregado||o.createdAt)}</span><span class="tot">${money(o.total)}</span></div>`;
+ if(o.status==="entregado")return`<div class="card mini" data-open="${esc(o.id)}"><span class="num">#${o.num}</span><span class="who">${esc(o.customer||"Customer")}</span><span class="age">${hm(o.t_entregado||o.createdAt)}</span><span class="tot">${money(o.total)}</span></div>`;
  return`<div class="card${late?" late":""}" data-open="${esc(o.id)}">
-  <div class="ch"><span class="num">#${o.num}</span><span class="age">${hm(o.createdAt)} · hace ${ago(o.createdAt)}${o.status==="prep"&&o.etaAt?" · listo "+hm(o.etaAt):""}</span>${late?`<span class="chip c-late">Atrasado</span>`:`<span class="chip c-${o.status}">${st.s}</span>`}</div>
-  <div class="who">${esc(o.customer||"Cliente")} <small>· ${esc(o.channel||"")}${o.pay?" · "+esc(o.pay):""}</small></div>
+  <div class="ch"><span class="num">#${o.num}</span><span class="age">${hm(o.createdAt)} · ${ago(o.createdAt)} ago${o.status==="prep"&&o.etaAt?" · ready "+hm(o.etaAt):""}</span>${late?`<span class="chip c-late">Late</span>`:`<span class="chip c-${o.status}">${st.s}</span>`}</div>
+  <div class="who">${esc(o.customer||"Customer")} <small>· ${esc(o.channel||"")}${o.pay?" · "+esc(o.pay):""}</small></div>
   ${itemsLine(o)}
   <div class="cf"><span class="tot">${money(o.total)}</span><span class="pay">${esc(o.pay||"")}</span>${st.next?`<button class="act" data-adv="${esc(o.id)}" ${busy.has(o.id)?"disabled":""}>${st.btn} →</button>`:""}</div></div>`;
 }
@@ -432,8 +433,8 @@ function board(){
  ["nuevo","prep","listo"].forEach(k=>by[k].sort((a,b)=>a.createdAt-b.createdAt));
  const active=by.nuevo.length+by.prep.length+by.listo.length;
  const todaySales=all.filter(o=>o.createdAt>=today&&o.status!=="cancelado").reduce((a,o)=>a+(+o.total||0),0);
- const emp={nuevo:"Sin pedidos nuevos. Cuando un cliente pida en el sitio, aparece aquí y suena el aviso.",prep:"Nada en la plancha.",listo:"Nada esperando retiro.",entregado:"Todavía no hay retiros hoy."};
- return`${CFG&&!CFG.accepting?`<div class="warn" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>Pedidos online pausados.</b> El sitio no acepta pedidos.</span><button class="ghost" data-act="pause">Reanudar</button></div>`:STORE&&!STORE.open?`<div class="warn"><b>Fuera de horario.</b> El sitio no acepta pedidos en este momento.</div>`:""}<div class="sum"><h1>Pedidos de hoy</h1><p>${active} en curso · ${by.entregado.length} retirados · ${money(todaySales)} vendidos</p></div>
+ const emp={nuevo:"No new orders. When a customer orders online it shows up here with an alert.",prep:"Nothing on the grill.",listo:"Nothing waiting for pickup.",entregado:"No pickups yet today."};
+ return`${CFG&&!CFG.accepting?`<div class="warn" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>Online orders paused.</b> The website isn't taking orders.</span><button class="ghost" data-act="pause">Resume</button></div>`:STORE&&!STORE.open?`<div class="warn"><b>Outside opening hours.</b> The website isn't taking orders right now.</div>`:""}<div class="sum"><h1>Today's orders</h1><p>${active} in progress · ${by.entregado.length} picked up · ${money(todaySales)} sold</p></div>
  <div class="coltabs" role="tablist">${FLOW.map(k=>`<button role="tab" data-col="${k}" aria-selected="${col===k}">${ST[k].t.split(" /")[0]} · ${by[k].length}</button>`).join("")}</div>
  <div class="board">${FLOW.map(k=>`<section class="col${col===k?" on":""}"><header><span class="dot" style="background:${ST[k].c}"></span><h2>${ST[k].t}</h2><span class="n">${by[k].length}</span></header>
   <div class="stack">${by[k].length?by[k].map(card).join(""):`<div class="empty">${emp[k]}</div>`}</div></section>`).join("")}</div>`;
@@ -441,17 +442,17 @@ function board(){
 
 /* ---------- sales ---------- */
 function range(p){const now=Date.now(),t0=dayStart(now);
- if(p==="hoy")return{a:t0,b:t0+DAY,pa:t0-DAY,pb:t0,vs:"vs ayer"};
- const n=p==="7"?7:30;return{a:t0-(n-1)*DAY,b:t0+DAY,pa:t0-(2*n-1)*DAY,pb:t0-(n-1)*DAY,vs:`vs ${n} días anteriores`}}
+ if(p==="hoy")return{a:t0,b:t0+DAY,pa:t0-DAY,pb:t0,vs:"vs yesterday"};
+ const n=p==="7"?7:30;return{a:t0-(n-1)*DAY,b:t0+DAY,pa:t0-(2*n-1)*DAY,pb:t0-(n-1)*DAY,vs:`vs previous ${n} days`}}
 function stats(list){const ok=list.filter(o=>o.status!=="cancelado"&&o.status!=="pago_pendiente"),tot=ok.reduce((a,o)=>a+(+o.total||0),0);return{ok,tot,n:ok.length,avg:ok.length?tot/ok.length:0,canc:list.filter(o=>o.status==="cancelado").length,comm:ok.filter(o=>o.status==="entregado").reduce((a,o)=>a+(+o.commission||0),0)}}
-function delta(c,p,vs){if(!p)return`<span>${vs}: sin datos</span>`;const d=(c-p)/p*100;return`<span class="${d>=0?"up":"down"}">${d>=0?"▲":"▼"} ${Math.abs(d).toFixed(0)}%</span> ${vs}`}
+function delta(c,p,vs){if(!p)return`<span>${vs}: no data</span>`;const d=(c-p)/p*100;return`<span class="${d>=0?"up":"down"}">${d>=0?"▲":"▼"} ${Math.abs(d).toFixed(0)}%</span> ${vs}`}
 function niceMax(v){if(v<=0)return 10;const e=Math.pow(10,Math.floor(Math.log10(v))),f=v/e;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*e}
 function barChart(vals,labels,every){
  const W=640,H=230,L=46,R=8,T=12,B=26,max=niceMax(Math.max(...vals,0)),bw=(W-L-R)/vals.length,top=Math.max(...vals);
  let g="";for(let i=0;i<=4;i++){const v=max*i/4,y=T+(H-T-B)*(1-i/4);g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${y}" y2="${y}"/><text class="ax" x="${L-8}" y="${y+4}" text-anchor="end">${money(v).replace(/\.\d+$/,"")}</text>`}
  vals.forEach((v,i)=>{const h=(H-T-B)*v/max,x=L+i*bw+bw*.15;g+=`<rect class="bar${v===top&&v>0?" max":""}" x="${x.toFixed(1)}" y="${(H-B-h).toFixed(1)}" width="${(bw*.7).toFixed(1)}" height="${h.toFixed(1)}" rx="2"><title>${labels[i]}: ${money(v)}</title></rect>`;
   if(i%every===0)g+=`<text class="ax" x="${(L+i*bw+bw/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${labels[i]}</text>`});
- return`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Ventas por período">${g}</svg>`}
+ return`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sales by period">${g}</svg>`}
 const TZ=10*36e5;
 const wkStart=t=>{const d=new Date(t+TZ),dow=(d.getUTCDay()+6)%7;return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-dow*DAY-TZ};
 const lday=t=>{const d=new Date(t+TZ);return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)};
@@ -459,44 +460,44 @@ const liso=t=>new Date(t+TZ).toISOString().slice(0,10);
 function weeks(){const cur=wkStart(Date.now()),out=[];for(let k=0;k<8;k++){const a=cur-k*7*DAY,b=a+7*DAY;
  const os=orders().filter(o=>o.status==="entregado"&&o.createdAt>=a&&o.createdAt<b);
  out.push({a,b,key:liso(a),n:os.length,sales:os.reduce((s,o)=>s+(+o.total||0),0),comm:os.reduce((s,o)=>s+(+o.commission||0),0),cur:k===0,payDay:a+8*DAY})}return out}
-function weekText(w){return`Twins Burgers · Comisión semana ${lday(w.a)} al ${lday(w.b-DAY)}: ${w.n} pedido${w.n===1?"":"s"} retirado${w.n===1?"":"s"}, ventas ${money(w.sales)}, comisión ${PCT}% = ${money(w.comm)}. Pago el martes ${lday(w.payDay)}.`}
+function weekText(w){return`Twins Burgers · Commission for week ${lday(w.a)} to ${lday(w.b-DAY)}: ${w.n} order${w.n===1?"":"s"} picked up, sales ${money(w.sales)}, commission ${PCT}% = ${money(w.comm)}. Due Tuesday ${lday(w.payDay)}.`}
 function commSection(){const ws=weeks().filter(w=>w.cur||w.n>0);
- return`<div class="panel mt"><h3>Tu comisión semanal</h3><p class="note">Semanas de lunes a domingo (hora de Gold Coast), ${PCT}% de los pedidos retirados. El dueño transfiere el martes siguiente.</p>
- <div class="tw"><table><thead><tr><th>Semana</th><th class="r">Retirados</th><th class="r">Ventas</th><th class="r">Comisión</th><th>Pago</th><th></th></tr></thead><tbody>
+ return`<div class="panel mt"><h3>Weekly commission</h3><p class="note">Monday to Sunday weeks (Gold Coast time), ${PCT}% of picked-up online orders. Paid the following Tuesday.</p>
+ <div class="tw"><table><thead><tr><th>Week</th><th class="r">Picked up</th><th class="r">Sales</th><th class="r">Commission</th><th>Payment</th><th></th></tr></thead><tbody>
  ${ws.map(w=>{const p=PAIDW[w.key];return`<tr><td>${lday(w.a)} – ${lday(w.b-DAY)}</td><td class="r">${w.n}</td><td class="r">${money(w.sales)}</td><td class="r"><b>${money(w.comm)}</b></td>
-  <td>${w.cur?`<span class="chip c-prep" style="margin:0">En curso</span>`:p?`<span class="chip c-listo" style="margin:0">Pagada</span>`:`<span class="chip c-nuevo" style="margin:0">Martes ${lday(w.payDay)}</span>`}</td>
-  <td style="white-space:nowrap">${w.cur?"":`<button class="ghost" data-wcopy="${w.key}">Copiar</button> ${p?`<button class="ghost" data-wunpay="${w.key}">Deshacer</button>`:`<button class="ghost" data-wpay="${w.key}">Marcar pagada</button>`}`}</td></tr>`}).join("")}
+  <td>${w.cur?`<span class="chip c-prep" style="margin:0">In progress</span>`:p?`<span class="chip c-listo" style="margin:0">Paid</span>`:`<span class="chip c-nuevo" style="margin:0">Tue ${lday(w.payDay)}</span>`}</td>
+  <td style="white-space:nowrap">${w.cur?"":`<button class="ghost" data-wcopy="${w.key}">Copy</button> ${p?`<button class="ghost" data-wunpay="${w.key}">Undo</button>`:`<button class="ghost" data-wpay="${w.key}">Mark as paid</button>`}`}</td></tr>`}).join("")}
  </tbody></table></div></div>`}
 function sales(){
  const R=range(period),all=orders(),cur=all.filter(o=>o.createdAt>=R.a&&o.createdAt<R.b),prev=all.filter(o=>o.createdAt>=R.pa&&o.createdAt<R.pb);
  const S=stats(cur),P=stats(prev);
  let vals=[],labels=[],every=1,title;
  if(period==="hoy"){let h0=11,h1=22;S.ok.forEach(o=>{const h=new Date(o.createdAt).getHours();h0=Math.min(h0,h);h1=Math.max(h1,h)});
-  for(let h=h0;h<=h1;h++){labels.push(h+"h");vals.push(S.ok.filter(o=>new Date(o.createdAt).getHours()===h).reduce((a,o)=>a+(+o.total||0),0))}every=labels.length>12?2:1;title="Ventas por hora"}
- else{for(let t=R.a;t<R.b;t+=DAY){labels.push(fmtDate(t));vals.push(S.ok.filter(o=>o.createdAt>=t&&o.createdAt<t+DAY).reduce((a,o)=>a+(+o.total||0),0))}every=period==="7"?1:5;title="Ventas por día"}
+  for(let h=h0;h<=h1;h++){labels.push(h+"h");vals.push(S.ok.filter(o=>new Date(o.createdAt).getHours()===h).reduce((a,o)=>a+(+o.total||0),0))}every=labels.length>12?2:1;title="Sales by hour"}
+ else{for(let t=R.a;t<R.b;t+=DAY){labels.push(fmtDate(t));vals.push(S.ok.filter(o=>o.createdAt>=t&&o.createdAt<t+DAY).reduce((a,o)=>a+(+o.total||0),0))}every=period==="7"?1:5;title="Sales by day"}
  const prod={};S.ok.forEach(o=>(o.items||[]).forEach(l=>{const k=String(l.n).replace(/\s*\(.*\)$/,"");prod[k]=prod[k]||{q:0,v:0};prod[k].q+=+l.q||0;prod[k].v+=(+l.q||0)*(+l.u||0)}));
  const top=Object.entries(prod).sort((a,b)=>b[1].q-a[1].q).slice(0,6),tq=top[0]?.[1].q||1;
- const brk=(key,list,cols)=>{const m={};S.ok.forEach(o=>{const k=o[key]||"Otro";m[k]=(m[k]||0)+(+o.total||0)});const ent=list.concat(Object.keys(m).filter(k=>!list.includes(k))).filter(k=>m[k]);
-  if(!ent.length)return`<p class="note">Sin ventas en este período.</p>`;
+ const brk=(key,list,cols)=>{const m={};S.ok.forEach(o=>{const k=o[key]||"Other";m[k]=(m[k]||0)+(+o.total||0)});const ent=list.concat(Object.keys(m).filter(k=>!list.includes(k))).filter(k=>m[k]);
+  if(!ent.length)return`<p class="note">No sales in this period.</p>`;
   return`<div class="split">${ent.map((k,i)=>`<i style="width:${m[k]/S.tot*100}%;background:${cols[i%cols.length]}"></i>`).join("")}</div><div class="leg">${ent.map((k,i)=>`<div><span class="dot" style="background:${cols[i%cols.length]}"></span>${esc(k)}<b>${money(m[k])} · ${Math.round(m[k]/S.tot*100)}%</b></div>`).join("")}</div>`};
  const cols=["var(--ink)","var(--mut)","var(--bun)","var(--line)"];
  const hist=cur.slice().sort((a,b)=>b.createdAt-a.createdAt).slice(0,60);
- return`<div class="sum"><h1>Ventas</h1><div class="seg" role="group" aria-label="Período">${[["hoy","Hoy"],["7","7 días"],["30","30 días"]].map(([k,t])=>`<button data-per="${k}" aria-pressed="${period===k}">${t}</button>`).join("")}</div></div>
+ return`<div class="sum"><h1>Sales</h1><div class="seg" role="group" aria-label="Period">${[["hoy","Today"],["7","7 days"],["30","30 days"]].map(([k,t])=>`<button data-per="${k}" aria-pressed="${period===k}">${t}</button>`).join("")}</div></div>
  <div class="kpis">
-  <div class="kpi hero"><div class="l">Vendido</div><div class="v">${money(S.tot)}</div><div class="d">${delta(S.tot,P.tot,R.vs)}</div></div>
-  <div class="kpi"><div class="l">Pedidos</div><div class="v">${S.n}</div><div class="d">${delta(S.n,P.n,R.vs)}</div></div>
-  <div class="kpi"><div class="l">Ticket promedio</div><div class="v">${money(S.avg)}</div><div class="d">${delta(S.avg,P.avg,R.vs)}</div></div>
-  <div class="kpi"><div class="l">Comisión ${PCT}%</div><div class="v">${money(S.comm)}</div><div class="d">De pedidos retirados · ${S.canc} cancelado${S.canc===1?"":"s"}</div></div>
+  <div class="kpi hero"><div class="l">Sales</div><div class="v">${money(S.tot)}</div><div class="d">${delta(S.tot,P.tot,R.vs)}</div></div>
+  <div class="kpi"><div class="l">Orders</div><div class="v">${S.n}</div><div class="d">${delta(S.n,P.n,R.vs)}</div></div>
+  <div class="kpi"><div class="l">Average order</div><div class="v">${money(S.avg)}</div><div class="d">${delta(S.avg,P.avg,R.vs)}</div></div>
+  <div class="kpi"><div class="l">Commission ${PCT}%</div><div class="v">${money(S.comm)}</div><div class="d">From picked-up orders · ${S.canc} cancelled</div></div>
  </div>
  <div class="grid2">
-  <div class="panel chart"><h3>${title}</h3><p class="note">Total de los pedidos, sin cancelados. AUD.</p>${S.n?barChart(vals,labels,every):`<div class="empty">Aún no hay ventas en este período.</div>`}</div>
-  <div class="panel"><h3>Lo más vendido</h3><p class="note">Unidades del período.</p>${top.length?`<ol class="rank">${top.map(([k,v])=>`<li><span>${esc(k)}</span><b>${v.q} u · ${money(v.v)}</b><span class="bt"><i style="width:${v.q/tq*100}%"></i></span></li>`).join("")}</ol>`:`<div class="empty">Sin productos vendidos todavía.</div>`}</div>
+  <div class="panel chart"><h3>${title}</h3><p class="note">Order totals, excluding cancelled. AUD.</p>${S.n?barChart(vals,labels,every):`<div class="empty">No sales in this period yet.</div>`}</div>
+  <div class="panel"><h3>Best sellers</h3><p class="note">Units sold in this period.</p>${top.length?`<ol class="rank">${top.map(([k,v])=>`<li><span>${esc(k)}</span><b>${v.q} sold · ${money(v.v)}</b><span class="bt"><i style="width:${v.q/tq*100}%"></i></span></li>`).join("")}</ol>`:`<div class="empty">No items sold yet.</div>`}</div>
  </div>
  <div class="grid2 mt">
-  <div class="panel"><h3>Historial</h3><p class="note">${cur.length} pedidos en el período. Toca uno para ver el detalle.</p>${hist.length?`<div class="tw"><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Canal</th><th>Pago</th><th>Estado</th><th class="r">Total</th></tr></thead><tbody>${hist.map(o=>`<tr class="cl" data-open="${esc(o.id)}"><td>${o.num}</td><td>${fmtDate(o.createdAt)} ${hm(o.createdAt)}</td><td>${esc(o.customer||"—")}</td><td>${esc(o.channel||"")}</td><td>${esc(o.pay||"")}</td><td><span class="chip c-${o.status}" style="margin:0">${ST[o.status]?.s||esc(o.status)}</span></td><td class="r">${money(o.total)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">Sin pedidos en este período.</div>`}</div>
+  <div class="panel"><h3>History</h3><p class="note">${cur.length} orders in this period. Tap one to see the details.</p>${hist.length?`<div class="tw"><table><thead><tr><th>#</th><th>Date</th><th>Customer</th><th>Channel</th><th>Payment</th><th>Status</th><th class="r">Total</th></tr></thead><tbody>${hist.map(o=>`<tr class="cl" data-open="${esc(o.id)}"><td>${o.num}</td><td>${fmtDate(o.createdAt)} ${hm(o.createdAt)}</td><td>${esc(o.customer||"—")}</td><td>${esc(o.channel||"")}</td><td>${esc(o.pay||"")}</td><td><span class="chip c-${o.status}" style="margin:0">${ST[o.status]?.s||esc(o.status)}</span></td><td class="r">${money(o.total)}</td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">No orders in this period.</div>`}</div>
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
-   <div class="panel"><h3>Medios de pago</h3>${brk("pay",PAYS,cols)}</div>
-   <div class="panel"><h3>Canal</h3>${brk("channel",CHANS,cols)}</div>
+   <div class="panel"><h3>Payment methods</h3>${brk("pay",PAYS,cols)}</div>
+   <div class="panel"><h3>Channel</h3>${brk("channel",CHANS,cols)}</div>
   </div>
  </div>${role==="admin"?commSection():""}`;
 }
@@ -508,20 +509,20 @@ function closeSheet(){openId=null;form=null;$("#sheet").innerHTML=""}
 function drawOrder(){
  const o=orders().find(x=>x.id===openId);if(!o){closeSheet();return}
  const st=ST[o.status]||{},i=FLOW.indexOf(o.status),prev=i>0&&o.status!=="cancelado"?FLOW[i-1]:null,ph=String(o.phone||"").replace(/\D/g,"");
- $("#sheet").innerHTML=`<div class="ov" data-act="close"><div class="sh" role="dialog" aria-modal="true" aria-label="Pedido ${o.num}">
- <div class="shh"><h2>Pedido #${o.num}</h2><span class="chip c-${o.status}" style="margin:0">${st.s||""}</span><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
- <div class="sec"><h4>Productos</h4>${(o.items||[]).map(l=>`<div class="ln"><span class="nm">${l.q}× ${esc(l.n)}</span><b>${money(l.u*l.q)}</b></div>`).join("")}
-  ${o.fee>0?`<div class="ln"><span class="nm">${o.channel==="Sitio web"?"Cargo online 3% (lo paga el cliente)":"Envío"}</span><b>${money(o.fee)}</b></div>`:""}<div class="ln"><span class="nm"><b>Total</b></span><b>${money(o.total)}</b></div></div>
- <div class="sec"><h4>Cliente</h4><div class="kv"><span>Nombre</span><div>${esc(o.customer||"—")}</div><span>Teléfono</span><div>${o.phone?`${esc(o.phone)} <button class="ghost" data-act="copy" style="padding:3px 8px;margin-left:6px">Copiar</button>`:"—"}</div><span>Entrega</span><div>Retira en el local${o.etaAt?" · listo a las "+hm(o.etaAt):""}</div>${o.notes?`<span>Notas</span><div>${esc(o.notes)}</div>`:""}<span>Pago</span><div>${esc(o.pay||"—")}</div><span>Canal</span><div>${esc(o.channel||"—")}</div><span>Hora</span><div>${fmtDate(o.createdAt)} ${hm(o.createdAt)} · hace ${ago(o.createdAt)}</div></div>
-  ${ph.length>=8?`<p style="margin:12px 0 0;display:flex;gap:16px;flex-wrap:wrap"><a href="tel:${ph}" style="color:var(--ink)">Llamar</a><a href="https://wa.me/${ph.replace(/^0/,"61")}" target="_blank" rel="noopener" style="color:var(--ink)">WhatsApp ↗</a></p>`:""}</div>
- <div class="btns" style="margin-bottom:8px"><button class="big alt" data-act="print">Imprimir boletas</button></div>
- <div class="btns">${o.status==="nuevo"?`<div class="etas">${[10,15,20,30].map(m=>`<button class="big${m===ETA?"":" alt"}" data-eta="${m}">Aceptar · ${m} min</button>`).join("")}</div>`:st.next?`<button class="big" data-act="adv">${st.btn} →</button>`:""}${prev?`<button class="big alt" data-act="back">Volver a ${ST[prev].s.toLowerCase()}</button>`:""}${o.status==="cancelado"?`<button class="big alt" data-act="restore">Reabrir pedido</button>`:o.status!=="entregado"?`<button class="big dng${sure?" sure":""}" data-act="cancel">${sure?"Confirmar cancelación":"Cancelar pedido"}</button>`:""}</div>
+ $("#sheet").innerHTML=`<div class="ov" data-act="close"><div class="sh" role="dialog" aria-modal="true" aria-label="Order ${o.num}">
+ <div class="shh"><h2>Order #${o.num}</h2><span class="chip c-${o.status}" style="margin:0">${st.s||""}</span><button class="x" data-act="close" aria-label="Close">×</button></div>
+ <div class="sec"><h4>Items</h4>${(o.items||[]).map(l=>`<div class="ln"><span class="nm">${l.q}× ${esc(l.n)}</span><b>${money(l.u*l.q)}</b></div>`).join("")}
+  ${o.fee>0?`<div class="ln"><span class="nm">${o.channel==="Online"?"Online service fee 3% (paid by customer)":"Delivery"}</span><b>${money(o.fee)}</b></div>`:""}<div class="ln"><span class="nm"><b>Total</b></span><b>${money(o.total)}</b></div></div>
+ <div class="sec"><h4>Customer</h4><div class="kv"><span>Name</span><div>${esc(o.customer||"—")}</div><span>Phone</span><div>${o.phone?`${esc(o.phone)} <button class="ghost" data-act="copy" style="padding:3px 8px;margin-left:6px">Copy</button>`:"—"}</div><span>Pickup</span><div>In store${o.etaAt?" · ready at "+hm(o.etaAt):""}</div>${o.notes?`<span>Notes</span><div>${esc(o.notes)}</div>`:""}<span>Payment</span><div>${esc(o.pay||"—")}</div><span>Channel</span><div>${esc(o.channel||"—")}</div><span>Time</span><div>${fmtDate(o.createdAt)} ${hm(o.createdAt)} · ${ago(o.createdAt)} ago</div></div>
+  ${ph.length>=8?`<p style="margin:12px 0 0;display:flex;gap:16px;flex-wrap:wrap"><a href="tel:${ph}" style="color:var(--ink)">Call</a><a href="https://wa.me/${ph.replace(/^0/,"61")}" target="_blank" rel="noopener" style="color:var(--ink)">WhatsApp ↗</a></p>`:""}</div>
+ <div class="btns" style="margin-bottom:8px"><button class="big alt" data-act="print">Print receipts</button></div>
+ <div class="btns">${o.status==="nuevo"?`<div class="etas">${[10,15,20,30].map(m=>`<button class="big${m===ETA?"":" alt"}" data-eta="${m}">Accept · ${m} min</button>`).join("")}</div>`:st.next?`<button class="big" data-act="adv">${st.btn} →</button>`:""}${prev?`<button class="big alt" data-act="back">Back to ${ST[prev].s.toLowerCase()}</button>`:""}${o.status==="cancelado"?`<button class="big alt" data-act="restore">Reopen order</button>`:o.status!=="entregado"?`<button class="big dng${sure?" sure":""}" data-act="cancel">${sure?"Confirm cancellation":"Cancel order"}</button>`:""}</div>
  </div></div>`;
 }
 
 /* ---------- new order ---------- */
 let form=null;
-function newOrder(){form={lines:[],customer:"",phone:"",address:"",notes:"",channel:"WhatsApp",pay:"Tarjeta",fee:0,paste:""};drawForm()}
+function newOrder(){form={lines:[],customer:"",phone:"",address:"",notes:"",channel:"WhatsApp",pay:"Card",fee:0,paste:""};drawForm()}
 function syncForm(){if(!form)return;["customer","phone","address","notes","paste"].forEach(k=>{const e=$("#f-"+k);if(e)form[k]=e.value});const f=$("#f-fee");if(f)form.fee=Math.max(0,parseFloat(f.value)||0);const c=$("#f-channel");if(c)form.channel=c.value;const p=$("#f-pay");if(p)form.pay=p.value}
 function addLine(n,u,q=1){const l=form.lines.find(x=>x.n===n&&x.u===u);l?l.q+=q:form.lines.push({n,u,q})}
 function parseWA(txt){const lines=[],info={};
@@ -533,34 +534,34 @@ function parseWA(txt){const lines=[],info={};
  return{lines,info}}
 function drawForm(msg=""){
  const sub=form.lines.reduce((a,l)=>a+l.u*l.q,0),tot=sub+(+form.fee||0);
- $("#sheet").innerHTML=`<div class="ov" data-act="close"><div class="sh" role="dialog" aria-modal="true" aria-label="Nuevo pedido">
- <div class="shh"><h2>Nuevo pedido</h2><button class="x" data-act="close" aria-label="Cerrar">×</button></div>
- <div class="sec"><h4>Pegar pedido de WhatsApp</h4><textarea id="f-paste" rows="3" placeholder="Pega aquí el mensaje “New delivery order – Twins Burgers” que llega desde el sitio">${esc(form.paste)}</textarea>
-  <div class="btns" style="margin-top:8px"><button class="ghost" data-act="parse">Leer mensaje</button></div></div>
- <div class="sec"><h4>O agrega productos del menú</h4><div class="menu">${MENU.map(([c,its])=>`<div class="g"><em>${c}</em>${its.map(([n,p])=>`<button class="pick" data-add="${esc(n)}" data-p="${p}">+ ${esc(n)}<small>${money(p)}</small></button>`).join("")}</div>`).join("")}</div></div>
- <div class="sec"><h4>Pedido</h4>${form.lines.length?form.lines.map((l,i)=>`<div class="ln"><button class="qb" data-q="${i}" data-d="-1" aria-label="Quitar uno">−</button><b>${l.q}</b><button class="qb" data-q="${i}" data-d="1" aria-label="Agregar uno">+</button><span class="nm">${esc(l.n)}</span><b>${money(l.u*l.q)}</b></div>`).join(""):`<p style="color:var(--mut);margin:0">Todavía no hay productos.</p>`}
+ $("#sheet").innerHTML=`<div class="ov" data-act="close"><div class="sh" role="dialog" aria-modal="true" aria-label="New order">
+ <div class="shh"><h2>New order</h2><button class="x" data-act="close" aria-label="Close">×</button></div>
+ <div class="sec"><h4>Paste a WhatsApp order</h4><textarea id="f-paste" rows="3" placeholder="Paste the order message here">${esc(form.paste)}</textarea>
+  <div class="btns" style="margin-top:8px"><button class="ghost" data-act="parse">Read message</button></div></div>
+ <div class="sec"><h4>Or add items from the menu</h4><div class="menu">${MENU.map(([c,its])=>`<div class="g"><em>${c}</em>${its.map(([n,p])=>`<button class="pick" data-add="${esc(n)}" data-p="${p}">+ ${esc(n)}<small>${money(p)}</small></button>`).join("")}</div>`).join("")}</div></div>
+ <div class="sec"><h4>Order</h4>${form.lines.length?form.lines.map((l,i)=>`<div class="ln"><button class="qb" data-q="${i}" data-d="-1" aria-label="Remove one">−</button><b>${l.q}</b><button class="qb" data-q="${i}" data-d="1" aria-label="Add one">+</button><span class="nm">${esc(l.n)}</span><b>${money(l.u*l.q)}</b></div>`).join(""):`<p style="color:var(--mut);margin:0">No items yet.</p>`}
   <div class="ln"><span class="nm">Subtotal</span><b>${money(sub)}</b></div></div>
- <div class="sec"><h4>Cliente y pago</h4>
-  <label for="f-customer">Nombre</label><input type="text" id="f-customer" value="${esc(form.customer)}" autocomplete="off">
-  <label for="f-phone">Teléfono</label><input type="tel" id="f-phone" value="${esc(form.phone)}" autocomplete="off">
-  <label for="f-address">Dirección (vacío = retira en el local)</label><input type="text" id="f-address" value="${esc(form.address)}" autocomplete="off">
-  <label for="f-notes">Notas</label><input type="text" id="f-notes" value="${esc(form.notes)}" autocomplete="off">
-  <div class="row2"><div><label for="f-channel">Canal</label><select id="f-channel">${CHANS.map(c=>`<option${c===form.channel?" selected":""}>${c}</option>`).join("")}</select></div>
-  <div><label for="f-pay">Pago</label><select id="f-pay">${PAYS.map(c=>`<option${c===form.pay?" selected":""}>${c}</option>`).join("")}</select></div>
-  <div><label for="f-fee">Envío ($)</label><input type="number" id="f-fee" min="0" step="0.5" value="${form.fee||""}" placeholder="0"></div></div></div>
+ <div class="sec"><h4>Customer and payment</h4>
+  <label for="f-customer">Name</label><input type="text" id="f-customer" value="${esc(form.customer)}" autocomplete="off">
+  <label for="f-phone">Phone</label><input type="tel" id="f-phone" value="${esc(form.phone)}" autocomplete="off">
+  <label for="f-address">Address (empty = pickup)</label><input type="text" id="f-address" value="${esc(form.address)}" autocomplete="off">
+  <label for="f-notes">Notes</label><input type="text" id="f-notes" value="${esc(form.notes)}" autocomplete="off">
+  <div class="row2"><div><label for="f-channel">Channel</label><select id="f-channel">${CHANS.map(c=>`<option${c===form.channel?" selected":""}>${c}</option>`).join("")}</select></div>
+  <div><label for="f-pay">Payment</label><select id="f-pay">${PAYS.map(c=>`<option${c===form.pay?" selected":""}>${c}</option>`).join("")}</select></div>
+  <div><label for="f-fee">Delivery ($)</label><input type="number" id="f-fee" min="0" step="0.5" value="${form.fee||""}" placeholder="0"></div></div></div>
  <p class="err" id="f-err">${msg}</p>
- <div class="btns"><button class="big" data-act="save">Guardar pedido · <span id="f-tot">${money(tot)}</span></button></div>
+ <div class="btns"><button class="big" data-act="save">Save order · <span id="f-tot">${money(tot)}</span></button></div>
  </div></div>`;
 }
 async function saveOrder(){
- syncForm();if(!form.lines.length){drawForm("Agrega al menos un producto o pega el mensaje de WhatsApp.");return}
+ syncForm();if(!form.lines.length){drawForm("Add at least one item or paste the WhatsApp message.");return}
  if(demo)setDemo(false);
  const sub=form.lines.reduce((a,l)=>a+l.u*l.q,0),fee=+form.fee||0,base=real.reduce((m,o)=>Math.max(m,+o.num||0),1000);
  const o={num:base+1,createdAt:Date.now(),status:"nuevo",customer:form.customer.trim(),phone:form.phone.trim(),address:form.address.trim(),notes:form.notes.trim(),items:form.lines.map(l=>({n:l.n,q:l.q,u:l.u})),subtotal:sub,fee,total:sub+fee,pay:form.pay,channel:form.channel,updatedAt:Date.now()};
- if(!db){drawForm("No se puede guardar: abre el panel con tu cuenta de Claude iniciada.");return}
+ if(!db){drawForm("Can't save right now.");return}
  const b=document.querySelector('[data-act="save"]');if(b)b.disabled=true;
- try{await db.collection("orders").doc().set(o);closeSheet();col="nuevo";tab="pedidos";render();toast("Pedido #"+o.num+" guardado")}
- catch(e){drawForm(e?.code==="quota_exceeded"?"El guardado está lleno. Borra pedidos antiguos para seguir.":e?.code==="invalid_argument"?"No tienes permiso para crear pedidos en este panel.":"No se pudo guardar. Revisa tu conexión e intenta de nuevo.")}
+ try{await db.collection("orders").doc().set(o);closeSheet();col="nuevo";tab="pedidos";render();toast("Order #"+o.num+" saved")}
+ catch(e){drawForm(e?.code==="quota_exceeded"?"Storage is full.":e?.code==="invalid_argument"?"You don't have permission to create orders.":"Couldn't save. Check your connection and try again.")}
 }
 
 /* ---------- events ---------- */
@@ -569,41 +570,41 @@ document.addEventListener("click",async e=>{
  const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin"&&tab==="ventas")tab="pedidos";try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
  if(t.closest("#btn-out")||(t.closest("[data-act]")&&t.closest("[data-act]").dataset.act==="logout")){logout();return}
  const et=t.closest("[data-eta]");if(et&&openId){const o=orders().find(x=>x.id===openId);if(o){await patch(o,{status:"prep",eta:+et.dataset.eta});drawOrder()}return}
- const sb=t.closest("#snd");if(sb){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(_){}soundOn=!soundOn&&!!actx;sb.setAttribute("aria-pressed",soundOn);sb.textContent=soundOn?"Sonido activado":"Activar sonido";if(soundOn)beep();return}
+ const sb=t.closest("#snd");if(sb){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(_){}soundOn=!soundOn&&!!actx;sb.setAttribute("aria-pressed",soundOn);sb.textContent=soundOn?"Sound on":"Turn on sound";if(soundOn)beep();return}
  const a=t.closest("[data-act]"),act=a?.dataset.act;
  if(act==="close"&&(a===t||a.classList.contains("x"))){closeSheet();return}
  if(act==="demo-off"){setDemo(false);return}
- if(act==="autoprint"){setAutoPrint(!autoPrintOn());render();toast(autoPrintOn()?"Las boletas se imprimen solas al llegar cada pedido":"Impresión automática desactivada");return}
- if(act==="testprint"){printOrder({id:"prueba",num:1000,createdAt:Date.now(),etaAt:Date.now()+15*6e4,customer:"Prueba",phone:"0400 000 000",items:[{n:"Twin I (Extra Beef)",q:2,u:23},{n:"Fries",q:1,u:6},{n:"Coke & Coke Zero (Coke Zero Sugar)",q:1,u:5}],notes:"Sin cebolla",total:57,pay:"Pagado online"});return}
- if(act==="pause"&&CFG){a.disabled=true;const {error}=await supa.from("settings").update({accepting:!CFG.accepting}).eq("id",1);if(error)toast("No se pudo cambiar. Intenta de nuevo.");else toast(CFG.accepting?"Pedidos online pausados":"Pedidos online reanudados");await loadLocal();render();return}
- const sdb=t.closest("[data-sold]");if(sdb){const it=MENU_ITEMS.find(x=>x.id===sdb.dataset.sold);if(it){sdb.disabled=true;const {error}=await supa.from("menu_items").update({sold_out:!it.sold_out}).eq("id",it.id);if(error)toast("No se pudo cambiar. Intenta de nuevo.");await loadLocal();render()}return}
- const wc=t.closest("[data-wcopy]");if(wc){const w=weeks().find(x=>x.key===wc.dataset.wcopy);if(w){try{await navigator.clipboard.writeText(weekText(w));toast("Resumen copiado")}catch(_){toast(weekText(w))}}return}
- const wp=t.closest("[data-wpay]");if(wp){const w=weeks().find(x=>x.key===wp.dataset.wpay);if(w){wp.disabled=true;const {error}=await supa.from("commission_payments").insert({week_start:w.key,amount_cents:Math.round(w.comm*100)});if(error)toast("No se pudo guardar.");else toast("Semana marcada como pagada");await loadLocal();render()}return}
- const wu=t.closest("[data-wunpay]");if(wu){wu.disabled=true;const {error}=await supa.from("commission_payments").delete().eq("week_start",wu.dataset.wunpay);if(error)toast("No se pudo cambiar.");await loadLocal();render();return}
+ if(act==="autoprint"){setAutoPrint(!autoPrintOn());render();toast(autoPrintOn()?"Receipts will print automatically for each new order":"Auto-print turned off");return}
+ if(act==="testprint"){printOrder({id:"prueba",num:1000,createdAt:Date.now(),etaAt:Date.now()+15*6e4,customer:"Test",phone:"0400 000 000",items:[{n:"Twin I (Extra Beef)",q:2,u:23},{n:"Fries",q:1,u:6},{n:"Coke & Coke Zero (Coke Zero Sugar)",q:1,u:5}],notes:"No onions",total:57,pay:"Paid online"});return}
+ if(act==="pause"&&CFG){a.disabled=true;const {error}=await supa.from("settings").update({accepting:!CFG.accepting}).eq("id",1);if(error)toast("Couldn't change it. Please try again.");else toast(CFG.accepting?"Online orders paused":"Online orders resumed");await loadLocal();render();return}
+ const sdb=t.closest("[data-sold]");if(sdb){const it=MENU_ITEMS.find(x=>x.id===sdb.dataset.sold);if(it){sdb.disabled=true;const {error}=await supa.from("menu_items").update({sold_out:!it.sold_out}).eq("id",it.id);if(error)toast("Couldn't change it. Please try again.");await loadLocal();render()}return}
+ const wc=t.closest("[data-wcopy]");if(wc){const w=weeks().find(x=>x.key===wc.dataset.wcopy);if(w){try{await navigator.clipboard.writeText(weekText(w));toast("Summary copied")}catch(_){toast(weekText(w))}}return}
+ const wp=t.closest("[data-wpay]");if(wp){const w=weeks().find(x=>x.key===wp.dataset.wpay);if(w){wp.disabled=true;const {error}=await supa.from("commission_payments").insert({week_start:w.key,amount_cents:Math.round(w.comm*100)});if(error)toast("Couldn't save.");else toast("Week marked as paid");await loadLocal();render()}return}
+ const wu=t.closest("[data-wunpay]");if(wu){wu.disabled=true;const {error}=await supa.from("commission_payments").delete().eq("week_start",wu.dataset.wunpay);if(error)toast("Couldn't change it.");await loadLocal();render();return}
  if(act==="sqcheck"){a.disabled=true;const {data,error}=await supa.functions.invoke("square-check",{body:{}});a.disabled=false;
-  if(error||!data||!data.ok){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(_){}toast(m||"No se pudo verificar Square.");return}
-  toast("Square verificado: "+(data.location_name||"OK"));await loadLocal();render();return}
- if(act==="sqpay"&&SQ){a.disabled=true;const {error}=await supa.rpc("set_require_payment",{p_on:!SQ.require_payment});if(error)toast(error.message||"No se pudo cambiar.");else toast(SQ.require_payment?"Ahora se paga al retirar":"Cobro online activado");await loadLocal();render();return}
+  if(error||!data||!data.ok){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(_){}toast(m||"Couldn't verify Square.");return}
+  toast("Square verified: "+(data.location_name||"OK"));await loadLocal();render();return}
+ if(act==="sqpay"&&SQ){a.disabled=true;const {error}=await supa.rpc("set_require_payment",{p_on:!SQ.require_payment});if(error)toast(error.message||"Couldn't change it.");else toast(SQ.require_payment?"Customers now pay at pickup":"Online payment turned on");await loadLocal();render();return}
  if(act==="savehrs"){const H={};for(let d=1;d<=7;d++){if(!$("#h-c"+d).checked)H[String(d)]=[$("#h-o"+d).value,$("#h-x"+d).value]}
   a.disabled=true;const {error}=await supa.rpc("update_store",{p_hours:H,p_enforce:$("#h-enf").checked,p_eta:+$("#h-eta").value});
-  if(error){a.disabled=false;$("#h-err").textContent=error.message||"No se pudo guardar.";return}
-  await loadLocal();render();toast("Horario guardado");return}
+  if(error){a.disabled=false;$("#h-err").textContent=error.message||"Couldn't save.";return}
+  await loadLocal();render();toast("Hours saved");return}
  const adv=t.closest("[data-adv]");if(adv){const o=orders().find(x=>x.id===adv.dataset.adv);if(o)advance(o);return}
  const cl=t.closest("[data-col]");if(cl){col=cl.dataset.col;render();return}
  const pe=t.closest("[data-per]");if(pe){period=pe.dataset.per;render();return}
  if(openId){const o=orders().find(x=>x.id===openId);if(!o)return;
   if(act==="adv"){await advance(o);drawOrder();return}
   if(act==="back"){const p=FLOW[FLOW.indexOf(o.status)-1];await patch(o,{status:p});drawOrder();return}
-  if(act==="cancel"){if(!sure){sure=true;drawOrder();return}await patch(o,{status:"cancelado",t_cancelado:Date.now()});closeSheet();toast("Pedido #"+o.num+" cancelado");return}
+  if(act==="cancel"){if(!sure){sure=true;drawOrder();return}await patch(o,{status:"cancelado",t_cancelado:Date.now()});closeSheet();toast("Order #"+o.num+" cancelled");return}
   if(act==="restore"){await patch(o,{status:"nuevo"});drawOrder();return}
   if(act==="print"){printOrder(o);return}
-  if(act==="copy"){try{await navigator.clipboard.writeText(o.phone);toast("Teléfono copiado")}catch(_){toast(o.phone)}return}
+  if(act==="copy"){try{await navigator.clipboard.writeText(o.phone);toast("Phone number copied")}catch(_){toast(o.phone)}return}
  }
  if(form){
   const ad=t.closest("[data-add]");if(ad){syncForm();addLine(ad.dataset.add,+ad.dataset.p);drawForm();return}
   const q=t.closest("[data-q]");if(q){syncForm();const l=form.lines[+q.dataset.q];l.q+=+q.dataset.d;if(l.q<=0)form.lines.splice(+q.dataset.q,1);drawForm();return}
-  if(act==="parse"){syncForm();const r=parseWA(form.paste);if(!r.lines.length){drawForm("No encontré productos en el mensaje. Copia el mensaje completo desde WhatsApp.");return}
-   r.lines.forEach(l=>addLine(l.n,l.u,l.q));Object.assign(form,Object.fromEntries(Object.entries(r.info).filter(([,v])=>v)));if(r.info.address)form.channel="WhatsApp";form.paste="";drawForm(`<span class="ok">Leí ${r.lines.length} producto${r.lines.length>1?"s":""}. Revisa y agrega el envío.</span>`);return}
+  if(act==="parse"){syncForm();const r=parseWA(form.paste);if(!r.lines.length){drawForm("No items found in the message. Copy the full message from WhatsApp.");return}
+   r.lines.forEach(l=>addLine(l.n,l.u,l.q));Object.assign(form,Object.fromEntries(Object.entries(r.info).filter(([,v])=>v)));if(r.info.address)form.channel="WhatsApp";form.paste="";drawForm(`<span class="ok">Found ${r.lines.length} item${r.lines.length>1?"s":""}. Check them and add delivery.</span>`);return}
   if(act==="save"){saveOrder();return}
  }
  const op=t.closest("[data-open]");if(op&&!form){openOrder(op.dataset.open)}
