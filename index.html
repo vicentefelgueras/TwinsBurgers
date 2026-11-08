@@ -233,8 +233,6 @@ const CATS=[
 {id:"wa",n:"Water",d:"",p:5}]}];
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const money=n=>"$"+n.toFixed(2).replace(".00","");
-// 3% online service fee sobre el subtotal (mismo redondeo que el servidor: centavos, mitades hacia arriba)
-const FEE_PCT=3,feeOf=x=>Math.round(Math.round(x*100)*FEE_PCT/100)/100,grand=()=>{const s=tot();return Math.round((s+feeOf(s))*100)/100};
 let cart=[],ordering=false;
 function render(){
  $("#cats").innerHTML=CATS.map(c=>`<a href="#c-${c.id}" data-c="${c.id}">${c.t}</a>`).join("");
@@ -265,7 +263,7 @@ function bar(){const b=$("#bar");b.classList.toggle("empty",!ordering||!cart.len
 $("#barbtn").onclick=cartView;
 function cartView(){
  $("#sh").innerHTML=`<button class="x" aria-label="Close" id="cl">×</button><h3>Your order</h3>`+(cart.length?cart.map((l,i)=>`<div class="ln"><div>${l.q}× ${l.n}<small>${[l.vn,...l.ex].filter(Boolean).join(", ")}</small><button data-r="${i}">Remove</button></div><b>${money(l.u*l.q)}</b></div>`).join("")
- +`<div class="ln"><span>Subtotal</span><b>${money(tot())}</b></div><div class="ln"><span>Online service fee (3%)</span><b>${money(feeOf(tot()))}</b></div><div class="ln"><span>Total</span><b>${money(grand())}</b></div><p class="note">Pickup only at Twins Burgers, Palm Beach. Ready in about 15–20 minutes. ${payOnline()?"You pay securely with Square on the next step.":"Pay when you pick up."}</p>
+ +`<div class="ln"><span>Total</span><b>${money(tot())}</b></div><p class="note">Pickup only at Twins Burgers, Palm Beach. Ready in about 15–20 minutes. ${payOnline()?"You pay securely with Square on the next step.":"Pay when you pick up."}</p>
  <label for="nm">Name</label><input type="text" id="nm" autocomplete="name" maxlength="60"><label for="ph">Phone</label><input type="tel" id="ph" autocomplete="tel" maxlength="20"><label for="nt">Notes (allergies, no onions…)</label><textarea id="nt" rows="2" maxlength="300"></textarea><p class="err" id="er"></p><button class="go" id="send">${sendLabel()}</button>`:`<p class="note">Your order is empty. Add something from the menu.</p>`);
  $("#ov").classList.add("on");$("#cl").onclick=close;
  $$("[data-r]").forEach(b=>b.onclick=()=>{cart.splice(+b.dataset.r,1);bar();cart.length?cartView():close()});
@@ -290,7 +288,7 @@ async function placeOrder(s){
  }catch(e){s.disabled=false;s.textContent=sendLabel();$("#er").textContent=(e&&e.code==="P0001"&&e.message)?e.message:"We couldn't send your order. Check your connection and try again."}
 }
 function payOnline(){return!!(STORE&&STORE.pay_online)}
-function sendLabel(){return(payOnline()?"Continue to payment · ":"Place order · ")+money(grand())}
+function sendLabel(){return(payOnline()?"Continue to payment · ":"Place order · ")+money(tot())}
 async function goPay(id){const {data,error}=await supa.functions.invoke("create-checkout",{body:{order_id:id}});
  if(error||!data||(!data.url&&!data.paid)){let m="";try{const b=error&&error.context&&await error.context.json();m=b&&b.error||""}catch(e){}throw{code:"P0001",message:m||"Online payment is not available right now. Please try again in a moment."}}
  if(data.paid){statusView({id});return}
