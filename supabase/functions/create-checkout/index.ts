@@ -1,11 +1,28 @@
 // Crea el link de pago de Square para un pedido pendiente. El dinero va completo a la cuenta del dueño.
 import { adminClient, auPhone, BASE, cors, json, sellerAuth, SITE_URL, sq, VERSION } from "../_shared/square.ts";
 
-// Hamburguesas del catálogo de Square del dueño (categoría Food) y su precio en Square, en centavos.
-const BURGERS: Record<string, { id: string; price: number }> = {
-  t1: { id: "J3F3QFERJ3CVH4OPGM4X7KMI", price: 1900 }, // Twin I
-  t2: { id: "2MQJUPUW5JVPKXSFUWGOOU4X", price: 2000 }, // Twin II
-  ok: { id: "PZFA7U32LPSR3HYJMAZQR2CB", price: 1900 }, // Oklahoma
+// Productos del catálogo de Square del dueño (id de la variación y precio en Square, en centavos).
+// Se mandan como productos reales para que Square use su nombre y su categoría (el perfil de cocina imprime solo Food).
+// Clave: id del producto del sitio, o "id:Opción" para los que tienen sabor/variante.
+const CATALOG: Record<string, { id: string; price: number }> = {
+  t1: { id: "J3F3QFERJ3CVH4OPGM4X7KMI", price: 1900 }, // Twin I (Food)
+  t2: { id: "2MQJUPUW5JVPKXSFUWGOOU4X", price: 2000 }, // Twin II (Food)
+  ok: { id: "PZFA7U32LPSR3HYJMAZQR2CB", price: 1900 }, // Oklahoma (Food)
+  fr: { id: "SWNFEQGW6LMS5DVFFYE7GRG2", price: 600 }, // Fries
+  lf: { id: "UJMKKUWY26J2UKQ7LARTQA57", price: 1400 }, // Loaded Fries
+  oc: { id: "YFKNWERNLASNKSFG6NQUBXJD", price: 800 }, // Oreo Dessert
+  "co:Coke Classic": { id: "KF5DNFRLVDLZQ43V4VAJOQL5", price: 500 }, // Coke
+  "co:Coke Zero Sugar": { id: "NY63OZQOIHSYTEE42LCO7MDV", price: 500 }, // Coke Zero
+  "ms:Mandarin": { id: "QGEHWMIL4NREXS5X55QV2ZQK", price: 700 }, // Jarritos Mandarin
+  "ms:Guava": { id: "DD6GIQQZSTKKRCS5RNNDDWKE", price: 700 }, // Jarritos Guava
+  "ms:Mango": { id: "CGRZSCEFX33DGOK7DIGHOY5X", price: 700 }, // Jarritos Mango
+  wa: { id: "AHP3IFZXL2XQVLCIULKL3FJF", price: 500 }, // Water
+};
+const VARIANT_ITEMS = new Set(["co", "ms"]);
+const catOf = (i: any) => {
+  const v = VARIANT_ITEMS.has(i.item_id);
+  const c = CATALOG[v ? i.item_id + ":" + (i.options?.[0] ?? "") : i.item_id];
+  return c ? { ...c, extras: (i.options ?? []).slice(v ? 1 : 0) as string[] } : undefined;
 };
 
 Deno.serve(async (req) => {
@@ -41,15 +58,14 @@ Deno.serve(async (req) => {
       quantity: String(i.qty),
       base_price_money: { amount: i.unit_cents, currency: "AUD" },
     });
-    // Hamburguesas como productos reales del catálogo de Square (categoría Food) para que el perfil de cocina
-    // imprima solo eso. Los extras van en la nota (cocina los ve) y su costo en una línea aparte sin categoría.
+    // Productos reales del catálogo de Square. Los extras van en la nota (cocina los ve) y su costo en una línea aparte sin categoría.
     const lines = (catalog: boolean) => {
       const out: any[] = [];
       for (const i of items) {
-        const c = catalog ? BURGERS[i.item_id] : undefined;
+        const c = catalog ? catOf(i) : undefined;
         if (c && i.unit_cents >= c.price) {
-          out.push({ catalog_object_id: c.id, quantity: String(i.qty), ...(i.options?.length ? { note: i.options.join(", ") } : {}) });
-          if (i.unit_cents > c.price) out.push({ name: i.name + " extras (" + (i.options ?? []).join(", ") + ")", quantity: String(i.qty), base_price_money: { amount: i.unit_cents - c.price, currency: "AUD" } });
+          out.push({ catalog_object_id: c.id, quantity: String(i.qty), ...(c.extras.length ? { note: c.extras.join(", ") } : {}) });
+          if (i.unit_cents > c.price) out.push({ name: "Extras: " + (c.extras.join(", ") || i.name), quantity: String(i.qty), base_price_money: { amount: i.unit_cents - c.price, currency: "AUD" } });
         } else out.push(adhoc(i));
       }
       if (fee > 0) out.push({ name: "Online service fee (3%)", quantity: "1", base_price_money: { amount: fee, currency: "AUD" } });
@@ -72,9 +88,9 @@ Deno.serve(async (req) => {
       payment_note: "Twins Burgers order #" + o.num,
       ...(ph ? { pre_populated_data: { buyer_phone_number: ph } } : {}),
     });
-    const hasBurger = items.some((i: any) => BURGERS[i.item_id]);
+    const hasCatalog = items.some((i: any) => catOf(i));
     let r: any = null;
-    if (hasBurger) {
+    if (hasCatalog) {
       // Intento con catálogo. Solo se usa si Square cobra exactamente el total del pedido; si no, se borra y se sigue como antes.
       try {
         r = await sq("/v2/online-checkout/payment-links", a.access_token, mk(true, true, o.id + "-c"));
