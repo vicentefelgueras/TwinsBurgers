@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 export const ENV = (Deno.env.get("SQUARE_ENV") ?? "sandbox").trim().toLowerCase() === "production" ? "production" : "sandbox";
 export const BASE = ENV === "production" ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
 export const VERSION = "2024-12-18";
-export const SITE_URL = "https://vicentefelgueras.github.io/TwinsBurgers/";
+export const SITE_URL = "https://twinssmash.com.au/";
 export const PANEL_URL = SITE_URL + "panel.html";
 export const PROJECT_URL = "https://qpwjbdqxheceoavusjca.supabase.co";
 export const WEBHOOK_URL = PROJECT_URL + "/functions/v1/square-webhook";
