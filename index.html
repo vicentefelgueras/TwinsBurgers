@@ -230,8 +230,11 @@ const CATS=[
 {id:"lf",n:"Loaded Fries",d:"Fries cooked in Beef Tallow, Horseradish Alioli Sauce, Parmesan, Chives",p:14,i:"loaded",a:[{n:"House Sauce",p:3},{n:"Sriracha Alioli",p:3}]}]},
 {id:"sweets",t:"Sweets",items:[{id:"oc",n:"Oreo Dessert",d:"Oreo, Dulce de Leche, Whipped Cream",p:8,i:"oreo"}]},
 {id:"drinks",t:"Drinks",items:[
-{id:"co",n:"Coke & Coke Zero",d:"Glass bottle",p:5,i:"coke",v:[{n:"Coke Classic",i:"coke"},{n:"Coke Zero Sugar",i:"zero"}]},
-{id:"ms",n:"Mexican Soda",d:"Jarritos, glass bottle",p:7,i:"mandarin",v:[{n:"Mandarin",i:"mandarin"},{n:"Guava",i:"guava"},{n:"Mango",i:"mango"}]}]}];
+{id:"ck",n:"Coke",d:"Glass bottle",p:5,i:"zero"},
+{id:"cz",n:"Coke Zero",d:"Glass bottle",p:5,i:"coke"},
+{id:"jm",n:"Jarritos Mandarin",d:"Mexican soda, glass bottle",p:7,i:"mandarin"},
+{id:"jg",n:"Jarritos Guava",d:"Mexican soda, glass bottle",p:7,i:"guava"},
+{id:"jo",n:"Jarritos Mango",d:"Mexican soda, glass bottle",p:7,i:"mango"}]}];
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const money=n=>"$"+n.toFixed(2).replace(".00","");
 let cart=[],ordering=false;

@@ -17,6 +17,11 @@ const CATALOG: Record<string, { id: string; price: number }> = {
   "ms:Guava": { id: "DD6GIQQZSTKKRCS5RNNDDWKE", price: 700 }, // Jarritos Guava
   "ms:Mango": { id: "CGRZSCEFX33DGOK7DIGHOY5X", price: 700 }, // Jarritos Mango
   wa: { id: "AHP3IFZXL2XQVLCIULKL3FJF", price: 500 }, // Water
+  ck: { id: "KF5DNFRLVDLZQ43V4VAJOQL5", price: 500 }, // Coke
+  cz: { id: "NY63OZQOIHSYTEE42LCO7MDV", price: 500 }, // Coke Zero
+  jm: { id: "QGEHWMIL4NREXS5X55QV2ZQK", price: 700 }, // Jarritos Mandarin
+  jg: { id: "DD6GIQQZSTKKRCS5RNNDDWKE", price: 700 }, // Jarritos Guava
+  jo: { id: "CGRZSCEFX33DGOK7DIGHOY5X", price: 700 }, // Jarritos Mango
 };
 const VARIANT_ITEMS = new Set(["co", "ms"]);
 const catOf = (i: any) => {
