@@ -234,10 +234,12 @@ const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money=n=>"$"+(Math.round((+n||0)*100)/100).toFixed(2).replace(/\.00$/,"");
 const pad=n=>String(n).padStart(2,"0");
-const hm=t=>{const d=new Date(t);return pad(d.getHours())+":"+pad(d.getMinutes())};
-const dayStart=t=>{const d=new Date(t);d.setHours(0,0,0,0);return d.getTime()};
+const GC=10*36e5;const gcd=t=>new Date(t+GC);
+const hm=t=>{const d=gcd(t);return pad(d.getUTCHours())+":"+pad(d.getUTCMinutes())};
+const gcHour=t=>gcd(t).getUTCHours();
+const dayStart=t=>{const d=gcd(t);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate())-GC};
 const DAY=864e5;
-const fmtDate=t=>{const d=new Date(t);return pad(d.getDate())+"/"+pad(d.getMonth()+1)};
+const fmtDate=t=>{const d=gcd(t);return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)};
 function mins(t){return Math.max(0,Math.floor((Date.now()-t)/6e4))}
 function ago(t){const m=mins(t);if(m<1)return"just now";if(m<60)return m+" min";const h=Math.floor(m/60);return h+" h "+(m%60)+" min"}
 
@@ -325,7 +327,7 @@ document.addEventListener("submit",async e=>{if(e.target.id!=="lf")return;e.prev
 function setDemo(){}
 const splitOpt=n=>{const m=/^(.*?)\s\((.*)\)$/.exec(n);return m?[m[1],m[2]]:[n,""]};
 function ticketsHTML(o){
- const when=new Date(o.createdAt),d=pad(when.getDate())+"/"+pad(when.getMonth()+1)+" "+hm(o.createdAt);
+ const d=fmtDate(o.createdAt)+" "+hm(o.createdAt);
  const kit=`<div class="tk"><div class="hd"><span>KITCHEN</span><span>${hm(o.createdAt)}</span></div><div class="num">#${o.num}</div><div class="who">${esc(o.customer||"Customer")} · PICKUP</div>${o.etaAt?`<div>Ready at ${hm(o.etaAt)}</div>`:""}<hr>
   ${(o.items||[]).map(l=>{const [n,op]=splitOpt(l.n);return`<div class="it">${l.q} × ${esc(n)}</div>${op?`<div class="op">${esc(op)}</div>`:""}`}).join("")}
   ${o.notes?`<div class="nt">NOTES: ${esc(o.notes)}</div>`:""}</div>`;
@@ -473,8 +475,8 @@ function sales(){
  const R=range(period),all=orders(),cur=all.filter(o=>o.createdAt>=R.a&&o.createdAt<R.b),prev=all.filter(o=>o.createdAt>=R.pa&&o.createdAt<R.pb);
  const S=stats(cur),P=stats(prev);
  let vals=[],labels=[],every=1,title;
- if(period==="hoy"){let h0=11,h1=22;S.ok.forEach(o=>{const h=new Date(o.createdAt).getHours();h0=Math.min(h0,h);h1=Math.max(h1,h)});
-  for(let h=h0;h<=h1;h++){labels.push(h+"h");vals.push(S.ok.filter(o=>new Date(o.createdAt).getHours()===h).reduce((a,o)=>a+(+o.total||0),0))}every=labels.length>12?2:1;title="Sales by hour"}
+ if(period==="hoy"){let h0=11,h1=22;S.ok.forEach(o=>{const h=gcHour(o.createdAt);h0=Math.min(h0,h);h1=Math.max(h1,h)});
+  for(let h=h0;h<=h1;h++){labels.push(h+"h");vals.push(S.ok.filter(o=>gcHour(o.createdAt)===h).reduce((a,o)=>a+(+o.total||0),0))}every=labels.length>12?2:1;title="Sales by hour"}
  else{for(let t=R.a;t<R.b;t+=DAY){labels.push(fmtDate(t));vals.push(S.ok.filter(o=>o.createdAt>=t&&o.createdAt<t+DAY).reduce((a,o)=>a+(+o.total||0),0))}every=period==="7"?1:5;title="Sales by day"}
  const prod={};S.ok.forEach(o=>(o.items||[]).forEach(l=>{const k=String(l.n).replace(/\s*\(.*\)$/,"");prod[k]=prod[k]||{q:0,v:0};prod[k].q+=+l.q||0;prod[k].v+=(+l.q||0)*(+l.u||0)}));
  const top=Object.entries(prod).sort((a,b)=>b[1].q-a[1].q).slice(0,6),tq=top[0]?.[1].q||1;
@@ -491,7 +493,7 @@ function sales(){
   <div class="kpi"><div class="l">Commission ${PCT}%</div><div class="v">${money(S.comm)}</div><div class="d">${PCT}% of sales · ${S.canc} cancelled</div></div>
  </div>
  <div class="grid2">
-  <div class="panel chart"><h3>${title}</h3><p class="note">Order totals, excluding cancelled. AUD.</p>${S.n?barChart(vals,labels,every):`<div class="empty">No sales in this period yet.</div>`}</div>
+  <div class="panel chart"><h3>${title}</h3><p class="note">Order totals, excluding cancelled. AUD · Gold Coast time.</p>${S.n?barChart(vals,labels,every):`<div class="empty">No sales in this period yet.</div>`}</div>
   <div class="panel"><h3>Best sellers</h3><p class="note">Units sold in this period.</p>${top.length?`<ol class="rank">${top.map(([k,v])=>`<li><span>${esc(k)}</span><b>${v.q} sold · ${money(v.v)}</b><span class="bt"><i style="width:${v.q/tq*100}%"></i></span></li>`).join("")}</ol>`:`<div class="empty">No items sold yet.</div>`}</div>
  </div>
  <div class="grid2 mt">
