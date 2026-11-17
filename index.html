@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://qpwjbdqxheceoavusjca.supabase.co wss://qpwjbdqxheceoavusjca.supabase.co; media-src 'self' data: blob:; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"><meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Twins Burgers – Menu & Pickup</title>
 <meta name="description" content="Twins Burgers, Palm Beach (Gold Coast). Double smash burgers. Order online for pickup.">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="vendor/supabase.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#ffffff;--card:#ffffff;--ink:#161616;--mut:#6f6f6f;--line:#e2e2e2;--btn:#161616;--btnink:#fff;
@@ -381,5 +381,5 @@ document.querySelectorAll(".rv").forEach(el=>io.observe(el));
 const go=()=>{setMode(true)};
 document.getElementById("n-o").onclick=go;
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="vendor/qrcode.js"></script>
 </body></html>
