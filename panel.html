@@ -125,11 +125,12 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 tr.cx>td{background:rgba(127,127,127,.06);padding:10px 12px}
 .ch-o{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:4px 12px;font-size:12.5px;align-items:baseline}
 .ch-o span:nth-child(5n+3){color:var(--mut)}
-.kp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.kp{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .kp div{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px}
 .kp b{display:block;font-size:24px;font-weight:900;font-stretch:75%;line-height:1.1}
 .kp span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:600}
-@media(max-width:640px){.kp{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kp .kme{background:var(--ink,#111);color:#fff;border-color:transparent}.kp .kme span{color:rgba(255,255,255,.75)}
+@media(max-width:900px){.kp{grid-template-columns:repeat(2,minmax(0,1fr))}.kp .kme{grid-column:1/-1;order:-1}}
 
 table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
 th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
@@ -547,7 +548,7 @@ function customers(){
  const q=custQ.toLowerCase();
  return`<div class="sum"><h1>Customers</h1><p>Every customer who has ordered, saved automatically from their orders.</p></div>
  ${custErr?`<div class="empty" style="margin-bottom:12px">${esc(custErr)}</div>`:""}
- <div class="kp"><div><span>Customers</span><b>${L.length}</b></div><div><span>Came back 2+ times</span><b>${rep}</b></div><div><span>New, last 30 days</span><b>${nw}</b></div><div><span>Avg spend / customer</span><b>${money(L.length?tot/L.length:0)}</b></div></div>
+ <div class="kp"><div><span>Customers</span><b>${L.length}</b></div><div><span>Came back 2+ times</span><b>${rep}</b></div><div><span>New, last 30 days</span><b>${nw}</b></div><div class="kme"><span>My commission, all time</span><b>${money(Math.round(tot*PCT)/100)}</b></div><div><span>Avg spend / customer</span><b>${money(L.length?tot/L.length:0)}</b></div></div>
  <div class="panel"><div class="cq"><input id="cust-q" type="search" placeholder="Search name or phone…" value="${esc(custQ)}" autocomplete="off"><button id="cust-csv">Download CSV</button><button id="cust-ref">Refresh</button></div>
  <p class="note">Tap a customer to see all their orders. Paid and completed orders only (cancelled and unpaid are not counted).</p>
  ${L.length?`<div class="tw"><table><thead><tr><th>Customer</th><th>Phone / WhatsApp</th><th class="r">Orders</th><th class="r">Spent</th><th>First order</th><th>Last order</th><th>Favourite</th></tr></thead><tbody>${L.map(c=>{
