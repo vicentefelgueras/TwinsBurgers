@@ -224,7 +224,7 @@ const IMG={still:"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQY
 const WA="61400000000"; // client WhatsApp number, country code first, no +
 const BA=[{n:"Extra Cheese",p:2},{n:"Add Pickles",p:2},{n:"Add Lettuce",p:1.5},{n:"Add Tomato",p:1.5},{n:"Lettuce Wrap",p:2},{n:"Quarter Pounder",p:0},{n:"Kids (Bun, Patty, Ketchup & Cheese)",p:0}];
 const SAU=["House Sauce","Sriracha Alioli","Horseradish Alioli"].map(n=>({n,p:3,sc:1}));
-const PATTY=4,PMAX=3,PN=k=>k===1?"1 Extra Patty":k+" Extra Patties";
+const PATTY=4,PMAX=20,PN=k=>k===1?"1 Extra Patty":k+" Extra Patties";
 const RM=(...xs)=>xs.map(x=>({n:"No "+x,p:0,rm:1}));
 const CATS=[
 {id:"burgers",t:"Smash Burgers",items:[
