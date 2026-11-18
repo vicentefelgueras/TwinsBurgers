@@ -233,7 +233,7 @@ const CATS=[
 {id:"ok",n:"Oklahoma",d:"Potato Bun, Double Smashed Beef, American Cheese, Grilled Onions, House Sauce",p:19,i:"oklahoma",pt:1,a:[...RM("Cheese","Grilled Onions","House Sauce"),...BA]}]},
 {id:"sides",t:"Sides",items:[
 {id:"fr",n:"Fries",d:"Cooked in Beef Tallow, House Seasoning",p:6,i:"fries",a:[...SAU]},
-{id:"lf",n:"Loaded Fries",d:"Fries cooked in Beef Tallow, Horseradish Alioli Sauce, Parmesan, Chives",p:14,i:"loaded",a:[...RM("Horseradish Alioli","Parmesan","Chives"),...SAU]}]},
+{id:"lf",n:"Loaded Fries",d:"Fries cooked in Beef Tallow, Horseradish Alioli Sauce, Parmesan, Chives",p:14,i:"loaded",a:[...RM("Horseradish Alioli","Parmesan","Chives")]}]},
 {id:"sweets",t:"Sweets",items:[{id:"oc",n:"Oreo Dessert",d:"Oreo, Dulce de Leche, Whipped Cream",p:8,i:"oreo"}]},
 {id:"drinks",t:"Drinks",items:[
 {id:"ck",n:"Coke",d:"Glass bottle",p:5,i:"zero"},
@@ -248,7 +248,7 @@ const money=n=>"$"+n.toFixed(2).replace(".00","");
 let cart=[],ordering=false;
 function render(){
  $("#cats").innerHTML=CATS.map(c=>`<a href="#c-${c.id}" data-c="${c.id}">${c.t}</a>`).join("");
- $("#list").innerHTML=CATS.map(c=>`<section id="c-${c.id}"><h2>${c.t}</h2>`+(c.id==="burgers"?`<p class="note menuonly">Extra Patty ${money(4)} each · Extra Cheese ${money(2)} · Add Pickles ${money(2)} · Add Lettuce or Tomato $1.50 · Lettuce Wrap ${money(2)}</p>`:"")+(c.id==="sides"?`<p class="note menuonly">Any sauce ${money(3)}: House Sauce, Sriracha Alioli, Horseradish Alioli</p>`:"")+`<div class="g">`+c.items.map(it=>`<div class="it">${it.i?`<img src="${IMG[it.i]}" alt="${it.n}">`:`<div class="ph0">${it.n}</div>`}<div class="b"><h3><span>${it.n}</span><span class="pr">${money(it.p)}</span></h3>${it.d?`<p>${it.d}</p>`:""}<button class="add" data-id="${it.id}">Add to order</button></div></div>`).join("")+`</div></section>`).join("");
+ $("#list").innerHTML=CATS.map(c=>`<section id="c-${c.id}"><h2>${c.t}</h2>`+(c.id==="burgers"?`<p class="note menuonly">Extra Patty ${money(4)} each · Extra Cheese ${money(2)} · Add Pickles ${money(2)} · Add Lettuce or Tomato $1.50 · Lettuce Wrap ${money(2)}</p>`:"")+(c.id==="sides"?`<p class="note menuonly">Add a sauce to your Fries, ${money(3)} each: House Sauce, Sriracha Alioli, Horseradish Alioli</p>`:"")+`<div class="g">`+c.items.map(it=>`<div class="it">${it.i?`<img src="${IMG[it.i]}" alt="${it.n}">`:`<div class="ph0">${it.n}</div>`}<div class="b"><h3><span>${it.n}</span><span class="pr">${money(it.p)}</span></h3>${it.d?`<p>${it.d}</p>`:""}<button class="add" data-id="${it.id}">Add to order</button></div></div>`).join("")+`</div></section>`).join("");
 }
 const find=id=>CATS.flatMap(c=>c.items).find(i=>i.id===id);
 function setMode(o){ordering=o;$("#app").className="wrap "+(o?"order":"menu");$("#bm").setAttribute("aria-pressed",!o);$("#bo").setAttribute("aria-pressed",o);document.body.classList.toggle("ord",o);bar();document.getElementById("lineup").scrollIntoView({behavior:"smooth"})}
