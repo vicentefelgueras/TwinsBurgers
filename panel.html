@@ -117,6 +117,20 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .leg{display:flex;flex-direction:column;gap:6px;font-size:13px}
 .leg div{display:flex;align-items:center;gap:8px}.leg b{margin-left:auto;font-variant-numeric:tabular-nums}
 .tw{overflow-x:auto;margin-top:4px}
+.cq{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.cq input{flex:1 1 220px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:6px;font:inherit;background:var(--card);color:inherit}
+.cq button{border:1px solid var(--line);background:var(--card);padding:10px 14px;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;color:inherit}
+.wa{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:99px;background:#25D366;color:#fff!important;font-weight:700;font-size:12px;text-decoration:none;white-space:nowrap}
+.wa svg{width:13px;height:13px;fill:currentColor}
+tr.cx>td{background:rgba(127,127,127,.06);padding:10px 12px}
+.ch-o{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:4px 12px;font-size:12.5px;align-items:baseline}
+.ch-o span:nth-child(5n+3){color:var(--mut)}
+.kp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.kp div{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px}
+.kp b{display:block;font-size:24px;font-weight:900;font-stretch:75%;line-height:1.1}
+.kp span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:600}
+@media(max-width:640px){.kp{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
 th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line)}
 td{padding:9px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
@@ -199,6 +213,7 @@ input[type=email],input[type=password]{width:100%;padding:10px;border:1px solid 
   <nav class="tabs" role="tablist">
     <button role="tab" id="t-ped" aria-selected="true" data-tab="pedidos">Orders</button>
     <button role="tab" id="t-ven" aria-selected="false" data-tab="ventas">Sales</button>
+    <button role="tab" id="t-cli" aria-selected="false" data-tab="clientes">Customers</button>
     <button role="tab" id="t-loc" aria-selected="false" data-tab="local">Store</button>
   </nav>
   <a class="sndbtn" href="./" style="text-decoration:none">View site</a><button class="sndbtn" id="snd" aria-pressed="false">Turn on sound</button><button class="new" id="btn-out" hidden>Log out</button>
@@ -294,7 +309,7 @@ async function start(){
  if(error){dbState="err";render();return}
  if(!st){dbState="noaccess";render();return}
  role=st.role;
- if(role!=="admin"&&tab==="ventas")tab="pedidos";
+ if(role!=="admin"&&tab==="ventas")tab="pedidos";if(tab==="clientes"&&!isMe())tab="pedidos";
  await loadLocal();
  await loadAll();
  if(SQRET&&role==="admin"){tab="local";render();toast(SQMSG[SQRET]||"Done");SQRET=null}
@@ -410,12 +425,12 @@ function render(){
  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
  const m=$("#main");
  let h="";
- document.querySelector(".tabs").hidden=!role;document.querySelector("#t-ven").hidden=role!=="admin";$("#btn-out").hidden=!session;$("#snd").hidden=!role;
+ document.querySelector(".tabs").hidden=!role;document.querySelector("#t-ven").hidden=role!=="admin";document.querySelector("#t-cli").hidden=!isMe();$("#btn-out").hidden=!session;$("#snd").hidden=!role;
  if(dbState==="login"){m.innerHTML=loginHTML();return}
  if(dbState==="noaccess"){m.innerHTML=`<div class="lock"><h1>No access</h1><p>The account ${esc(session&&session.user.email||"")} isn't authorised for this panel. Ask Rodrigo for access.</p><button class="big alt" data-act="logout">Log out</button></div>`;return}
  if(dbState==="err")h+=`<div class="warn">Couldn't connect to the database. Check the connection; the panel will retry automatically.</div>`;
  if(dbState==="loading"&&!demo){m.innerHTML=h+`<p style="color:var(--mut)">Loading orders…</p>`;return}
- h+=tab==="pedidos"?board():tab==="ventas"?sales():local();
+ h+=tab==="pedidos"?board():tab==="ventas"?sales():tab==="clientes"&&isMe()?customers():local();
  m.innerHTML=h;
 }
 
@@ -505,6 +520,47 @@ function sales(){
  </div>${role==="admin"?commSection():""}`;
 }
 
+
+/* ---------- customers (admin) ---------- */
+const fmtDY=t=>{const d=gcd(t);return pad(d.getUTCDate())+"/"+pad(d.getUTCMonth()+1)+"/"+String(d.getUTCFullYear()).slice(2)};
+const isMe=()=>!!(session&&session.user&&String(session.user.email||"").toLowerCase()==="vicentef.icloud@gmail.com");
+let cust=null,custQ="",custOpen=null,custErr="",custBusy=false;
+const WA_SVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.4-.7-2.9-1.1-4.7-4.1-4.9-4.3-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.3.5-.4.5c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z"/></svg>';
+function phoneKey(p){let d=String(p||"").replace(/\D/g,"");if(d.startsWith("61"))d="0"+d.slice(2);if(d.length===9&&d[0]==="4")d="0"+d;return d}
+function waNum(p){const d=phoneKey(p);return d.startsWith("0")?"61"+d.slice(1):d}
+function prettyPhone(p){const d=phoneKey(p);return d.length===10&&d.startsWith("04")?d.slice(0,4)+" "+d.slice(4,7)+" "+d.slice(7):(p||"")}
+async function loadCust(){if(custBusy)return;custBusy=true;custErr="";
+ const r=await fetchOrders("2020-01-01T00:00:00Z");custBusy=false;
+ if(r.error){custErr="Couldn't load customers. Check the connection and tap Refresh.";cust=[];}else cust=(r.data||[]).map(mapRow);
+ if(tab==="clientes")render()}
+function custList(){
+ const src=demo?demoOrders:cust||[],m=new Map();
+ src.forEach(o=>{if(o.status==="cancelado"||o.status==="pago_pendiente")return;const k=phoneKey(o.phone);if(!k)return;
+  let c=m.get(k);if(!c){c={k,phone:o.phone,name:"",orders:[],spent:0,first:o.createdAt,last:0,items:{}};m.set(k,c)}
+  c.orders.push(o);c.spent+=o.total||0;c.first=Math.min(c.first,o.createdAt);if(o.createdAt>=c.last){c.last=o.createdAt;c.name=o.customer||c.name;c.phone=o.phone}
+  (o.items||[]).forEach(i=>{const n=String(i.n).split(" (")[0].split(" · ")[0];c.items[n]=(c.items[n]||0)+i.q})});
+ const L=[...m.values()];L.forEach(c=>{c.orders.sort((a,b)=>b.createdAt-a.createdAt);c.fav=Object.entries(c.items).sort((a,b)=>b[1]-a[1])[0]?.[0]||""});
+ return L.sort((a,b)=>b.last-a.last)}
+function customers(){
+ if(!demo&&cust===null){loadCust();return`<div class="sum"><h1>Customers</h1></div><p style="color:var(--mut)">Loading every order…</p>`}
+ const L=custList(),now=Date.now(),rep=L.filter(c=>c.orders.length>1).length,nw=L.filter(c=>now-c.first<30*864e5).length,tot=L.reduce((a,c)=>a+c.spent,0);
+ const q=custQ.toLowerCase();
+ return`<div class="sum"><h1>Customers</h1><p>Every customer who has ordered, saved automatically from their orders.</p></div>
+ ${custErr?`<div class="empty" style="margin-bottom:12px">${esc(custErr)}</div>`:""}
+ <div class="kp"><div><span>Customers</span><b>${L.length}</b></div><div><span>Came back 2+ times</span><b>${rep}</b></div><div><span>New, last 30 days</span><b>${nw}</b></div><div><span>Avg spend / customer</span><b>${money(L.length?tot/L.length:0)}</b></div></div>
+ <div class="panel"><div class="cq"><input id="cust-q" type="search" placeholder="Search name or phone…" value="${esc(custQ)}" autocomplete="off"><button id="cust-csv">Download CSV</button><button id="cust-ref">Refresh</button></div>
+ <p class="note">Tap a customer to see all their orders. Paid and completed orders only (cancelled and unpaid are not counted).</p>
+ ${L.length?`<div class="tw"><table><thead><tr><th>Customer</th><th>Phone / WhatsApp</th><th class="r">Orders</th><th class="r">Spent</th><th>First order</th><th>Last order</th><th>Favourite</th></tr></thead><tbody>${L.map(c=>{
+  const s=(c.name+" "+c.k+" "+prettyPhone(c.phone)).toLowerCase(),hid=q&&!s.includes(q)?" hidden":"";
+  return`<tr class="cl" data-cust="${esc(c.k)}" data-s="${esc(s)}"${hid}><td><b>${esc(c.name||"—")}</b></td><td><a class="wa" href="https://wa.me/${esc(waNum(c.phone))}" target="_blank" rel="noopener">${WA_SVG}${esc(prettyPhone(c.phone))}</a></td><td class="r">${c.orders.length}</td><td class="r">${money(c.spent)}</td><td>${fmtDY(c.first)}</td><td>${fmtDY(c.last)}</td><td>${esc(c.fav)}</td></tr>`+
+  (custOpen===c.k?`<tr class="cx" data-x="${esc(c.k)}"${hid}><td colspan="7"><div class="ch-o">${c.orders.map(o=>`<span><b>#${o.num}</b></span><span>${fmtDY(o.createdAt)} ${hm(o.createdAt)}</span><span>${esc((o.items||[]).map(i=>i.q+"× "+i.n).join(", "))}</span><span><span class="chip c-${o.status}" style="margin:0">${ST[o.status]?.s||esc(o.status)}</span></span><span class="r"><b>${money(o.total)}</b></span>`).join("")}</div></td></tr>`:"")}).join("")}</tbody></table></div>`:`<div class="empty">No customers yet. They appear here as soon as someone orders.</div>`}
+ </div>`}
+function custFilter(){const q=custQ.toLowerCase();document.querySelectorAll("tr[data-cust]").forEach(r=>{const h=!!q&&!r.dataset.s.includes(q);r.hidden=h;const x=document.querySelector(`tr[data-x="${CSS.escape(r.dataset.cust)}"]`);if(x)x.hidden=h})}
+function custCSV(){const L=custList(),f=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
+ const rows=[["Name","Phone","WhatsApp link","Orders","Total spent (AUD)","First order","Last order","Favourite item"]].concat(L.map(c=>[c.name,prettyPhone(c.phone),"https://wa.me/"+waNum(c.phone),c.orders.length,c.spent.toFixed(2),fmtDY(c.first),fmtDY(c.last),c.fav]));
+ const blob=new Blob(["﻿"+rows.map(r=>r.map(f).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="twins-customers-"+new Date(Date.now()+GC).toISOString().slice(0,10)+".csv";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+
 /* ---------- order detail ---------- */
 let openId=null,sure=false;
 function openOrder(id){openId=id;sure=false;drawOrder()}
@@ -570,7 +626,7 @@ async function saveOrder(){
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
  const t=e.target;
- const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin"&&tab==="ventas")tab="pedidos";try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
+ const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin"&&tab==="ventas")tab="pedidos";if(tab==="clientes"&&!isMe())tab="pedidos";if(tab==="clientes")cust=null;try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
  if(t.closest("#btn-out")||(t.closest("[data-act]")&&t.closest("[data-act]").dataset.act==="logout")){logout();return}
  const et=t.closest("[data-eta]");if(et&&openId){const o=orders().find(x=>x.id===openId);if(o){await patch(o,{status:"prep",eta:+et.dataset.eta});drawOrder()}return}
  const sb=t.closest("#snd");if(sb){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(_){}soundOn=!soundOn&&!!actx;sb.setAttribute("aria-pressed",soundOn);sb.textContent=soundOn?"Sound on":"Turn on sound";if(soundOn)beep();return}
@@ -610,8 +666,13 @@ document.addEventListener("click",async e=>{
    r.lines.forEach(l=>addLine(l.n,l.u,l.q));Object.assign(form,Object.fromEntries(Object.entries(r.info).filter(([,v])=>v)));if(r.info.address)form.channel="WhatsApp";form.paste="";drawForm(`<span class="ok">Found ${r.lines.length} item${r.lines.length>1?"s":""}. Check them and add delivery.</span>`);return}
   if(act==="save"){saveOrder();return}
  }
+ if(t.closest("a.wa"))return;
+ if(t.closest("#cust-csv")){custCSV();return}
+ if(t.closest("#cust-ref")){cust=null;render();return}
+ const cr=t.closest("[data-cust]");if(cr){custOpen=custOpen===cr.dataset.cust?null:cr.dataset.cust;render();return}
  const op=t.closest("[data-open]");if(op&&!form){openOrder(op.dataset.open)}
 });
+document.addEventListener("input",e=>{if(e.target.id==="cust-q"){custQ=e.target.value;custFilter()}});
 document.addEventListener("change",e=>{const m=/^h-c(\d)$/.exec(e.target.id||"");if(m){$("#h-o"+m[1]).disabled=e.target.checked;$("#h-x"+m[1]).disabled=e.target.checked}});
 document.addEventListener("input",e=>{if(form&&e.target.id==="f-fee"){syncForm();const s=form.lines.reduce((a,l)=>a+l.u*l.q,0);const el=$("#f-tot");if(el)el.textContent=money(s+(+form.fee||0))}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&(openId||form))closeSheet()});
