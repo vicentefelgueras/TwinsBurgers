@@ -254,7 +254,7 @@ const find=id=>CATS.flatMap(c=>c.items).find(i=>i.id===id);
 function setMode(o){ordering=o;$("#app").className="wrap "+(o?"order":"menu");$("#bm").setAttribute("aria-pressed",!o);$("#bo").setAttribute("aria-pressed",o);document.body.classList.toggle("ord",o);bar();document.getElementById("lineup").scrollIntoView({behavior:"smooth"})}
 $("#bm").onclick=()=>setMode(false);$("#bo").onclick=()=>setMode(true);
 let cur;
-function openItem(it){cur={it,v:0,a:new Set(),q:1,pt:0};drawItem();$("#ov").classList.add("on")}
+function openItem(it){try{if(supa&&it.id)supa.rpc("track_view",{p_item:it.id}).then(()=>{},()=>{})}catch(_){}cur={it,v:0,a:new Set(),q:1,pt:0};drawItem();$("#ov").classList.add("on")}
 function unit(){return cur.it.p+cur.pt*PATTY+[...cur.a].reduce((s,i)=>s+cur.it.a[i].p,0)}
 function drawItem(){const{it}=cur,img=it.v?it.v[cur.v].i:it.i;
  $("#sh").innerHTML=`<button class="x" aria-label="Close" id="cl">×</button>${img?`<img class="big" src="${IMG[img]}" alt="">`:""}<h3><span>${it.n}</span><span class="pr">${money(it.p)}</span></h3><p class="note">${it.d}</p>`

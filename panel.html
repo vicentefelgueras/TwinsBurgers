@@ -431,7 +431,7 @@ function render(){
  if(dbState==="noaccess"){m.innerHTML=`<div class="lock"><h1>No access</h1><p>The account ${esc(session&&session.user.email||"")} isn't authorised for this panel. Ask Rodrigo for access.</p><button class="big alt" data-act="logout">Log out</button></div>`;return}
  if(dbState==="err")h+=`<div class="warn">Couldn't connect to the database. Check the connection; the panel will retry automatically.</div>`;
  if(dbState==="loading"&&!demo){m.innerHTML=h+`<p style="color:var(--mut)">Loading orders…</p>`;return}
- h+=tab==="pedidos"?board():tab==="ventas"?sales():tab==="clientes"&&isMe()?customers():local();
+ h+=tab==="pedidos"?board():tab==="ventas"?sales():tab==="clientes"&&isMe()?customers()+products():local();
  m.innerHTML=h;
 }
 
@@ -556,6 +556,23 @@ function customers(){
   return`<tr class="cl" data-cust="${esc(c.k)}" data-s="${esc(s)}"${hid}><td><b>${esc(c.name||"—")}</b></td><td><a class="wa" href="https://wa.me/${esc(waNum(c.phone))}" target="_blank" rel="noopener">${WA_SVG}${esc(prettyPhone(c.phone))}</a></td><td class="r">${c.orders.length}</td><td class="r">${money(c.spent)}</td><td>${fmtDY(c.first)}</td><td>${fmtDY(c.last)}</td><td>${esc(c.fav)}</td></tr>`+
   (custOpen===c.k?`<tr class="cx" data-x="${esc(c.k)}"${hid}><td colspan="7"><div class="ch-o">${c.orders.map(o=>`<span><b>#${o.num}</b></span><span>${fmtDY(o.createdAt)} ${hm(o.createdAt)}</span><span>${esc((o.items||[]).map(i=>i.q+"× "+i.n).join(", "))}</span><span><span class="chip c-${o.status}" style="margin:0">${ST[o.status]?.s||esc(o.status)}</span></span><span class="r"><b>${money(o.total)}</b></span>`).join("")}</div></td></tr>`:"")}).join("")}</tbody></table></div>`:`<div class="empty">No customers yet. They appear here as soon as someone orders.</div>`}
  </div>`}
+
+let pstats=null,pErr="",pBusy=false;
+async function loadPstats(){if(pBusy)return;pBusy=true;pErr="";
+ const {data,error}=await supa.rpc("product_stats");pBusy=false;
+ if(error){pErr="Couldn't load product stats.";pstats=[]}else pstats=data||[];
+ if(tab==="clientes")render()}
+function products(){
+ let L;
+ if(demo)L=[{name:"Twin II",clicks:340,units:96,orders:85,revenue_cents:216000},{name:"Twin I",clicks:290,units:70,orders:61,revenue_cents:133000},{name:"Fries",clicks:210,units:120,orders:118,revenue_cents:84000},{name:"Loaded Fries",clicks:160,units:40,orders:38,revenue_cents:56000},{name:"OK Burger",clicks:150,units:22,orders:20,revenue_cents:35200},{name:"Coke",clicks:40,units:55,orders:50,revenue_cents:22000}];
+ else{if(pstats===null){loadPstats();return`<div class="panel" style="margin-top:14px"><h3>Products</h3><p class="note">Loading…</p></div>`}L=pstats}
+ const tc=L.reduce((a,p)=>a+Number(p.clicks),0);
+ return`<div class="panel" style="margin-top:14px"><h3>Products</h3>
+ <p class="note">Clicks = times someone opened the product on the website (counted since ${demo?"setup":"19 Nov 2026"}). Orders = paid orders that included it. Total clicks: ${tc}.</p>
+ ${pErr?`<div class="empty">${esc(pErr)}</div>`:""}
+ <div class="tw"><table><thead><tr><th>Product</th><th class="r">Clicks</th><th class="r">Orders</th><th class="r">Units sold</th><th class="r">% that buy</th><th class="r">Sales</th></tr></thead><tbody>${L.map(p=>{const c=Number(p.clicks),o=Number(p.orders),r=c?Math.min(100,Math.round(o/c*100))+"%":"—";
+  return`<tr><td><b>${esc(p.name)}</b></td><td class="r">${c}</td><td class="r">${o}</td><td class="r">${Number(p.units)}</td><td class="r">${r}</td><td class="r">${money(Number(p.revenue_cents)/100)}</td></tr>`}).join("")}</tbody></table></div>
+ <p class="note" style="margin-top:8px">"% that buy" = orders ÷ clicks. A low % means people look at it but don't buy it (price, photo or description may need work).</p></div>`}
 function custFilter(){const q=custQ.toLowerCase();document.querySelectorAll("tr[data-cust]").forEach(r=>{const h=!!q&&!r.dataset.s.includes(q);r.hidden=h;const x=document.querySelector(`tr[data-x="${CSS.escape(r.dataset.cust)}"]`);if(x)x.hidden=h})}
 function custCSV(){const L=custList(),f=v=>'"'+String(v??"").replace(/"/g,'""')+'"';
  const rows=[["Name","Phone","WhatsApp link","Orders","Total spent (AUD)","First order","Last order","Favourite item"]].concat(L.map(c=>[c.name,prettyPhone(c.phone),"https://wa.me/"+waNum(c.phone),c.orders.length,c.spent.toFixed(2),fmtDY(c.first),fmtDY(c.last),c.fav]));
@@ -627,7 +644,7 @@ async function saveOrder(){
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
  const t=e.target;
- const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin"&&tab==="ventas")tab="pedidos";if(tab==="clientes"&&!isMe())tab="pedidos";if(tab==="clientes")cust=null;try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
+ const tb=t.closest("[data-tab]");if(tb){tab=tb.dataset.tab;if(role!=="admin"&&tab==="ventas")tab="pedidos";if(tab==="clientes"&&!isMe())tab="pedidos";if(tab==="clientes"){cust=null;pstats=null}try{localStorage.setItem("tw-tab",tab)}catch(_){}render();return}
  if(t.closest("#btn-out")||(t.closest("[data-act]")&&t.closest("[data-act]").dataset.act==="logout")){logout();return}
  const et=t.closest("[data-eta]");if(et&&openId){const o=orders().find(x=>x.id===openId);if(o){await patch(o,{status:"prep",eta:+et.dataset.eta});drawOrder()}return}
  const sb=t.closest("#snd");if(sb){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume&&actx.resume()}catch(_){}soundOn=!soundOn&&!!actx;sb.setAttribute("aria-pressed",soundOn);sb.textContent=soundOn?"Sound on":"Turn on sound";if(soundOn)beep();return}
@@ -669,7 +686,7 @@ document.addEventListener("click",async e=>{
  }
  if(t.closest("a.wa"))return;
  if(t.closest("#cust-csv")){custCSV();return}
- if(t.closest("#cust-ref")){cust=null;render();return}
+ if(t.closest("#cust-ref")){cust=null;pstats=null;render();return}
  const cr=t.closest("[data-cust]");if(cr){custOpen=custOpen===cr.dataset.cust?null:cr.dataset.cust;render();return}
  const op=t.closest("[data-open]");if(op&&!form){openOrder(op.dataset.open)}
 });
