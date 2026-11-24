@@ -251,7 +251,8 @@ function render(){
  $("#list").innerHTML=CATS.map(c=>`<section id="c-${c.id}"><h2>${c.t}</h2>`+(c.id==="burgers"?`<p class="note menuonly">Extra Beef ${money(4)} each · Extra Cheese ${money(2)} · Add Pickles ${money(2)} · Add Lettuce or Tomato $1.50 · Lettuce Wrap ${money(2)}</p>`:"")+(c.id==="sides"?`<p class="note menuonly">Add a sauce to your Fries, ${money(3)} each: House Sauce, Sriracha Alioli, Horseradish Alioli</p>`:"")+`<div class="g">`+c.items.map(it=>`<div class="it">${it.i?`<img src="${IMG[it.i]}" alt="${it.n}">`:`<div class="ph0">${it.n}</div>`}<div class="b"><h3><span>${it.n}</span><span class="pr">${money(it.p)}</span></h3>${it.d?`<p>${it.d}</p>`:""}<button class="add" data-id="${it.id}">Add to order</button></div></div>`).join("")+`</div></section>`).join("");
 }
 const find=id=>CATS.flatMap(c=>c.items).find(i=>i.id===id);
-function setMode(o){ordering=o;$("#app").className="wrap "+(o?"order":"menu");$("#bm").setAttribute("aria-pressed",!o);$("#bo").setAttribute("aria-pressed",o);document.body.classList.toggle("ord",o);bar();document.getElementById("lineup").scrollIntoView({behavior:"smooth"})}
+function setMode(o){ordering=o;$("#app").className="wrap "+(o?"order":"menu");$("#bm").setAttribute("aria-pressed",!o);$("#bo").setAttribute("aria-pressed",o);document.body.classList.toggle("ord",o);bar();goMenu()}
+function goMenu(){const a=$("#app"),t=$(".top");if(!a)return;const st=t?getComputedStyle(t):null,off=t?t.offsetHeight+((st.position==="sticky"||st.position==="fixed")?(parseFloat(st.top)||0):0):0;const y=a.getBoundingClientRect().top+scrollY-off-12;window.scrollTo({top:Math.max(0,y),behavior:"smooth"})}
 $("#bm").onclick=()=>setMode(false);$("#bo").onclick=()=>setMode(true);
 let cur;
 function openItem(it){try{if(supa&&it.id)supa.rpc("track_view",{p_item:it.id}).then(()=>{},()=>{})}catch(_){}cur={it,v:0,a:new Set(),q:1,pt:0};drawItem();$("#ov").classList.add("on")}
