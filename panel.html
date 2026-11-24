@@ -125,7 +125,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 tr.cx>td{background:rgba(127,127,127,.06);padding:10px 12px}
 .ch-o{display:grid;grid-template-columns:auto auto 1fr auto auto;gap:4px 12px;font-size:12.5px;align-items:baseline}
 .ch-o span:nth-child(5n+3){color:var(--mut)}
-.kp{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.kp{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .kp div{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px}
 .kp b{display:block;font-size:24px;font-weight:900;font-stretch:75%;line-height:1.1}
 .kp span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:600}
@@ -506,7 +506,7 @@ function sales(){
   <div class="kpi hero"><div class="l">Sales</div><div class="v">${money(S.tot)}</div><div class="d">${delta(S.tot,P.tot,R.vs)}</div></div>
   <div class="kpi"><div class="l">Orders</div><div class="v">${S.n}</div><div class="d">${delta(S.n,P.n,R.vs)}</div></div>
   <div class="kpi"><div class="l">Average order</div><div class="v">${money(S.avg)}</div><div class="d">${delta(S.avg,P.avg,R.vs)}</div></div>
-  <div class="kpi"><div class="l">Commission ${PCT}%</div><div class="v">${money(S.comm)}</div><div class="d">${PCT}% of sales · ${S.canc} cancelled</div></div>
+  <div class="kpi"><div class="l">Cancelled</div><div class="v">${S.canc}</div><div class="d">orders in this period</div></div>
  </div>
  <div class="grid2">
   <div class="panel chart"><h3>${title}</h3><p class="note">Order totals, excluding cancelled. AUD · Gold Coast time.</p>${S.n?barChart(vals,labels,every):`<div class="empty">No sales in this period yet.</div>`}</div>
@@ -518,7 +518,7 @@ function sales(){
    <div class="panel"><h3>Payment methods</h3>${brk("pay",PAYS,cols)}</div>
    <div class="panel"><h3>Channel</h3>${brk("channel",CHANS,cols)}</div>
   </div>
- </div>${role==="admin"?commSection():""}`;
+ </div>`;
 }
 
 
@@ -548,7 +548,7 @@ function customers(){
  const q=custQ.toLowerCase();
  return`<div class="sum"><h1>Customers</h1><p>Every customer who has ordered, saved automatically from their orders.</p></div>
  ${custErr?`<div class="empty" style="margin-bottom:12px">${esc(custErr)}</div>`:""}
- <div class="kp"><div><span>Customers</span><b>${L.length}</b></div><div><span>Came back 2+ times</span><b>${rep}</b></div><div><span>New, last 30 days</span><b>${nw}</b></div><div class="kme"><span>My commission, all time</span><b>${money(Math.round(tot*PCT)/100)}</b></div><div><span>Avg spend / customer</span><b>${money(L.length?tot/L.length:0)}</b></div></div>
+ <div class="kp"><div><span>Customers</span><b>${L.length}</b></div><div><span>Came back 2+ times</span><b>${rep}</b></div><div><span>New, last 30 days</span><b>${nw}</b></div><div><span>Avg spend / customer</span><b>${money(L.length?tot/L.length:0)}</b></div></div>
  <div class="panel"><div class="cq"><input id="cust-q" type="search" placeholder="Search name or phone…" value="${esc(custQ)}" autocomplete="off"><button id="cust-csv">Download CSV</button><button id="cust-ref">Refresh</button></div>
  <p class="note">Tap a customer to see all their orders. Paid and completed orders only (cancelled and unpaid are not counted).</p>
  ${L.length?`<div class="tw"><table><thead><tr><th>Customer</th><th>Phone / WhatsApp</th><th class="r">Orders</th><th class="r">Spent</th><th>First order</th><th>Last order</th><th>Favourite</th></tr></thead><tbody>${L.map(c=>{
